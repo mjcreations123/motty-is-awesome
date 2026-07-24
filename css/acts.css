@@ -6,13 +6,39 @@
  */
 
 .act{position:relative;pointer-events:none}
+/* acts are long: three to four screens each, so the camera has room to make a journey
+   and the copy has room to develop through sub-beats */
 .h170{min-height:170vh} .h190{min-height:190vh} .h200{min-height:200vh}
 .h210{min-height:210vh} .h240{min-height:240vh}
+.h300{min-height:300vh} .h340{min-height:340vh} .h360{min-height:360vh}
+.h380{min-height:380vh} .h400{min-height:400vh} .h440{min-height:440vh}
 
 .act__pin{position:sticky;top:0;height:100svh;display:flex;align-items:center;
   padding:0 var(--edge)}
 .act__copy{position:relative;z-index:1;width:min(100%,545px);pointer-events:auto}
 .act--right .act__copy{margin-left:auto}
+
+/* ---------------- sub-beats: the copy advances as the camera travels ---------------- */
+.act--scene .act__copy{min-height:clamp(300px,42vh,440px);display:flex;align-items:center}
+.sub{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  opacity:0;pointer-events:none;transition:opacity .45s ease}
+.sub.is-live{opacity:1;pointer-events:auto}
+.js .sub > *{opacity:0;clip-path:inset(0 100% -0.45em 0);
+  transition:opacity .45s ease,clip-path .9s cubic-bezier(.16,.84,.28,1)}
+.js .sub.is-live > *{opacity:1;clip-path:inset(-0.4em -0.6em -0.5em -0.3em)}
+.js .sub > *:nth-child(2){transition-delay:.07s}
+.js .sub > *:nth-child(3){transition-delay:.14s}
+.js .sub > *:nth-child(4){transition-delay:.20s}
+/* the sub-beat counter, so a long act reads as a scene with parts */
+.sub-rail{position:absolute;left:0;top:calc(100% + 18px);display:flex;gap:6px}
+.sub-rail i{display:block;width:16px;height:2px;background:rgba(233,235,239,.22)}
+.sub-rail i.on{background:var(--accent)}
+html.is-pale .sub-rail i{background:rgba(20,22,26,.2)}
+@media (prefers-reduced-motion:reduce){
+  .sub{position:relative;top:auto;transform:none;opacity:1;margin-bottom:2.5rem}
+  .act--scene .act__copy{display:block;min-height:0}
+  .js .sub > *{opacity:1;clip-path:none;transition:none}
+}
 
 /* local scrim: the copy never fights the world behind it */
 .act__copy::before{content:"";position:absolute;z-index:-1;inset:-42% -54% -42% -66%;

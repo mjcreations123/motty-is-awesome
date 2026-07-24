@@ -4,7 +4,7 @@
 
 import {
   makeTexture, averagePageTexture, directedPageTexture, rowTexture, radialShadow,
-  ease, easeOut, clamp01, lerp, mulberry32
+  flyPath, ease, easeOut, clamp01, lerp, mulberry32
 } from "./world.js";
 
 var TAU = Math.PI * 2;
@@ -14,98 +14,207 @@ var TAU = Math.PI * 2;
  * You are standing inside the average website before you realise that is what it is.
  * Camera: one straight backward dolly, zero rotation. Scale: one room. No accent.
  * ========================================================================== */
+var ROOM_Z0 = -11;          /* where the one page hangs */
+var ROOM_LOCK = 5.165;      /* tan(fov/2) * (camZ - z0) held constant = the vertigo lock */
+
 export const actRoom = {
   id: "room", accent: null, bg: 0x1A1C20, fov: 38, restT: 0.85,
-  fog: function (T) { return new T.FogExp2(0x1A1C20, 0.028); },
+  /* light fog only: the retreat is long, and the stack has to stay legible at the far end */
+  fog: function (T) { return new T.FogExp2(0x1A1C20, 0.011); },
 
   build: function (ctx) {
-    var T = ctx.THREE, root = ctx.root, S = ctx.actState;
-    var W = 14, H = 6, zNear = 26, zFar = -13;
+    var T = ctx.THREE, root = ctx.root, S = ctx.actState, small = ctx.small;
+    var W = 14, H = 6, LEN = 39;
+    var rnd = mulberry32(7);
+
+    /* Everything that is "the room" lives in one group measured from a near origin, so the
+       shell can LENGTHEN behind you: you dolly back eighteen units and the exit retreats
+       twenty two, which is why you never reach the door. */
+    var shell = new T.Group();
+    shell.position.z = 26;
+    root.add(shell);
+    S.shell = shell;
+
+    var floorTex = makeTexture(T, ctx.renderer, 512, 512, function (g, w, h) {
+      g.fillStyle = "#26282C"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "rgba(150,156,166,.14)"; g.lineWidth = 2;
+      for (var i = 1; i < 4; i++) {
+        var u = (i / 4) * w;
+        g.beginPath(); g.moveTo(u, 0); g.lineTo(u, h); g.stroke();
+        g.beginPath(); g.moveTo(0, u); g.lineTo(w, u); g.stroke();
+      }
+      g.fillStyle = "rgba(210,216,226,.05)";
+      for (var k = 0; k < 900; k++) g.fillRect(rnd() * w, rnd() * h, 1, 1);
+      g.fillStyle = "rgba(0,0,0,.10)"; g.fillRect(128, 256, 128, 128);
+    }, { repeat: [7, 22] });
+
+    var ceilTex = makeTexture(T, ctx.renderer, 512, 512, function (g, w, h) {
+      g.fillStyle = "#232529"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "rgba(190,196,206,.20)"; g.lineWidth = 3;
+      for (var i = 1; i < 4; i++) {
+        var u = (i / 4) * w;
+        g.beginPath(); g.moveTo(u, 0); g.lineTo(u, h); g.stroke();
+        g.beginPath(); g.moveTo(0, u); g.lineTo(w, u); g.stroke();
+      }
+    }, { repeat: [7, 22] });
+
     var wallMat = new T.MeshLambertMaterial({ color: 0x2A2C31, side: T.DoubleSide });
+    var floor = new T.Mesh(new T.PlaneGeometry(W, LEN), new T.MeshLambertMaterial({ map: floorTex }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, -H / 2, -LEN / 2); shell.add(floor);
+    var ceil = new T.Mesh(new T.PlaneGeometry(W, LEN), new T.MeshLambertMaterial({ map: ceilTex }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(0, H / 2, -LEN / 2); shell.add(ceil);
+    var wl = new T.Mesh(new T.PlaneGeometry(LEN, H), wallMat);
+    wl.rotation.y = Math.PI / 2; wl.position.set(-W / 2, 0, -LEN / 2); shell.add(wl);
+    var wr = new T.Mesh(new T.PlaneGeometry(LEN, H), wallMat);
+    wr.rotation.y = -Math.PI / 2; wr.position.set(W / 2, 0, -LEN / 2); shell.add(wr);
+    S.floorTex = floorTex; S.ceilTex = ceilTex;
 
-    function plane(w, h, pos, rot) {
-      var m = new T.Mesh(new T.PlaneGeometry(w, h), wallMat);
-      m.position.set(pos[0], pos[1], pos[2]);
-      m.rotation.set(rot[0], rot[1], rot[2]);
-      root.add(m);
-      return m;
+    /* skirting, dado and cove: three continuous lines converging on the vanishing point,
+       which is what makes a four screen pure translation legible at all */
+    var trimMat = new T.MeshLambertMaterial({ color: 0x33363C });
+    var trim = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1), trimMat, 6);
+    var m4 = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3();
+    [[-6.96, -2.65, 0.12, 0.30], [6.96, -2.65, 0.12, 0.30],
+     [-6.96, 0.15, 0.10, 0.06], [6.96, 0.15, 0.10, 0.06],
+     [-6.96, 2.86, 0.14, 0.22], [6.96, 2.86, 0.14, 0.22]].forEach(function (P, i) {
+      v.set(P[0], P[1], -LEN / 2); s.set(P[2], P[3], LEN);
+      m4.compose(v, q, s); trim.setMatrixAt(i, m4);
+    });
+    trim.instanceMatrix.needsUpdate = true; shell.add(trim);
+
+    /* recessed ceiling troughs, kept OUT of the shell so they never stretch */
+    var TROUGH = small ? 34 : 60;
+    var troughs = new T.InstancedMesh(new T.PlaneGeometry(1, 1),
+      new T.MeshBasicMaterial({ side: T.FrontSide }), TROUGH);
+    var col = new T.Color(), e = new T.Euler(Math.PI / 2, 0, 0);
+    var half = TROUGH / 2;
+    S.tubeZ = new Float32Array(half);
+    for (var i2 = 0; i2 < half; i2++) {
+      var z = 24 - i2 * 2.2, x = (i2 % 2) ? 2.6 : -2.6;
+      S.tubeZ[i2] = z;
+      v.set(x, H / 2 - 0.005, z); s.set(2.4, 0.56, 1);
+      m4.compose(v, q.setFromEuler(e), s);
+      troughs.setMatrixAt(i2 * 2, m4);
+      troughs.setColorAt(i2 * 2, col.setHex(0x141619));
+      v.set(x, H / 2 - 0.02, z); s.set(2.2, 0.42, 1);
+      m4.compose(v, q, s);
+      troughs.setMatrixAt(i2 * 2 + 1, m4);
+      troughs.setColorAt(i2 * 2 + 1, col.setHex(0xC9D0DA));
     }
-    var len = zNear - zFar, cz = (zNear + zFar) / 2;
-    plane(W, len, [0, -H / 2, cz], [-Math.PI / 2, 0, 0]);          // floor
-    plane(W, len, [0, H / 2, cz], [Math.PI / 2, 0, 0]);            // ceiling
-    plane(len, H, [-W / 2, 0, cz], [0, Math.PI / 2, 0]);           // left
-    plane(len, H, [W / 2, 0, cz], [0, -Math.PI / 2, 0]);           // right
+    troughs.instanceMatrix.needsUpdate = true;
+    if (troughs.instanceColor) troughs.instanceColor.needsUpdate = true;
+    root.add(troughs);
+    S.troughs = troughs; S.half = half;
 
-    /* hairline seams, so the box reads as built rather than as a void */
-    var edges = new T.LineSegments(
-      new T.EdgesGeometry(new T.BoxGeometry(W, H, len)),
-      new T.LineBasicMaterial({ color: 0x4A4E56 })
-    );
-    edges.position.z = cz;
-    root.add(edges);
+    /* a door frame standing in the mouth, retreating faster than you do */
+    var door = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1),
+      new T.MeshLambertMaterial({ color: 0x3C4046 }), 3);
+    [[-3.2, 0, 0.16, 5.2], [3.2, 0, 0.16, 5.2], [0, 2.6, 6.56, 0.22]].forEach(function (P, i) {
+      v.set(P[0], P[1], 0); s.set(P[2], P[3], 0.30);
+      m4.compose(v, q, s); door.setMatrixAt(i, m4);
+    });
+    door.instanceMatrix.needsUpdate = true;
+    root.add(door);
+    S.door = door;
 
-    /* the one page on the wall, then 200 of it in dead alignment behind.
-       each clone is scaled by its distance so it projects to the same rectangle:
-       from head on you still see exactly one page. */
-    var REF = 4, z0 = -11, step = 0.62;
-    var N = ctx.small ? 110 : 200;
+    /* the one page, and the stack behind it. every clone is rescaled EVERY FRAME so its
+       projected size matches the front one exactly: head on you see a single rectangle,
+       no matter where the camera is. that is what breaks at the end. */
+    var N = small ? 110 : 200, step = 0.62;
     var panel = new T.InstancedMesh(
       new T.PlaneGeometry(3.2, 1.8),
       new T.MeshLambertMaterial({
-        map: averagePageTexture(T, ctx.renderer, "#AEB6C0", "#35383F"),
-        side: T.DoubleSide
-      }),
-      N
-    );
-    var m4 = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3();
-    var d0 = REF - z0;
-    for (var i = 0; i < N; i++) {
-      var z = z0 - i * step;
-      var k = (REF - z) / d0;
-      v.set(0, 0.35, z); s.set(k, k, 1);
-      m4.compose(v, q, s);
-      panel.setMatrixAt(i, m4);
-    }
-    panel.instanceMatrix.needsUpdate = true;
+        map: averagePageTexture(T, ctx.renderer, "#AEB6C0", "#35383F"), side: T.DoubleSide
+      }), N);
     panel.count = 1;
     root.add(panel);
-    S.panel = panel; S.N = N;
+    S.panel = panel; S.N = N; S.step = step;
+    S.m4 = new T.Matrix4(); S.q = new T.Quaternion();
+    S.v = new T.Vector3(); S.s = new T.Vector3();
 
-    /* the glow the clones make once there are too many to see individually */
-    var glow = new T.Mesh(
-      new T.PlaneGeometry(60, 34),
-      new T.MeshBasicMaterial({ color: 0x8C939E, transparent: true, opacity: 0 })
-    );
-    glow.position.set(0, 0.35, z0 - N * step * 0.55);
+    var glow = new T.Mesh(new T.PlaneGeometry(60, 34),
+      new T.MeshBasicMaterial({ color: 0x8C939E, transparent: true, opacity: 0 }));
+    glow.position.set(0, 0.35, ROOM_Z0 - N * step * 0.55);
     root.add(glow);
     S.glow = glow;
 
-    var ceil = new T.PointLight(0xDCE2EA, 120, 30, 2);
-    ceil.position.set(0, H / 2 - 0.4, 2);
-    root.add(ceil);
-    S.ceil = ceil;
-    /* a second, dimmer source on the wall, so the one page is legible as the subject */
-    var onPanel = new T.PointLight(0xC9D2DC, 26, 14, 2);
-    onPanel.position.set(0, 1.2, -7.5);
-    root.add(onPanel);
-    S.onPanel = onPanel;
-    root.add(new T.AmbientLight(0x4A4E56, 1.15));
+    var lamp = new T.PointLight(0xDCE2EA, 120, 34, 2);
+    lamp.position.set(0, H / 2 - 0.4, 2); root.add(lamp); S.lamp = lamp;
+    var onPanel = new T.PointLight(0xC9D2DC, 30, 40, 2);
+    onPanel.position.set(0, 0.35, -14); root.add(onPanel); S.onPanel = onPanel;
+    root.add(new T.AmbientLight(0x4A4E56, 1.05));
   },
 
   camera: function (ctx) {
-    var c = ctx.camera, p = ease(ctx.t);
-    c.position.set(0, 0, lerp(4, 22, p));       /* pure translation, no rotation anywhere */
-    c.rotation.set(0, 0, 0);
-    c.fov = lerp(38, 52, p);
-    c.updateProjectionMatrix();
+    var c = ctx.camera, t = ctx.t;
+    /* Six legs of pure -Z translation. Through the first three the lens is scored so
+       tan(fov/2) * (camZ - z0) stays constant: you travel five units and the page does
+       not change size by a pixel, while the room rushes past. Then the lock breaks. */
+    var camZ, fov;
+    if (t < 0.34) {
+      camZ = t < 0.16 ? lerp(4.0, 1.15, easeOut(t / 0.16))
+                      : lerp(1.15, 6.30, ease((t - 0.16) / 0.18));
+      fov = 2 * Math.atan(ROOM_LOCK / (camZ - ROOM_Z0)) * 180 / Math.PI;
+    } else if (t < 0.56) {
+      camZ = lerp(6.30, 11.60, easeOut((t - 0.34) / 0.22)); fov = lerp(33.2, 44, ease((t - 0.34) / 0.22));
+    } else if (t < 0.80) {
+      camZ = lerp(11.60, 17.80, easeOut((t - 0.56) / 0.24)); fov = lerp(44, 50, (t - 0.56) / 0.24);
+    } else {
+      camZ = lerp(17.80, 22.0, easeOut((t - 0.80) / 0.20)); fov = lerp(50, 52, (t - 0.80) / 0.20);
+    }
+    c.position.set(0, 0.35, camZ);
+    c.rotation.set(0, 0, 0);          /* zero rotation for the whole act, on every axis */
+    if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
+    ctx.actState.camZ = camZ;
   },
 
   frame: function (ctx) {
-    var S = ctx.actState, t = ctx.t;
-    var k = clamp01((t - 0.42) / 0.48);
-    S.panel.count = 1 + Math.floor(k * (S.N - 1));
-    S.glow.material.opacity = k * 0.1;
-    S.ceil.intensity = lerp(90, 14, clamp01((t - 0.86) / 0.14));
+    var S = ctx.actState, t = ctx.t, camZ = S.camZ != null ? S.camZ : 4;
+
+    /* the shell lengthens behind you from t 0.30, so the exit outruns the camera */
+    var grow = lerp(1, 2.15, ease(clamp01((t - 0.30) / 0.55)));
+    S.shell.scale.z = grow;
+    S.floorTex.repeat.y = 22 * grow;
+    S.ceilTex.repeat.y = 22 * grow;
+    S.door.position.z = 26 - 39 * grow;
+
+    /* how many clones are revealed, and how far the stack has fanned out of alignment */
+    var reveal = clamp01((t - 0.30) / 0.44);
+    var count = 1 + Math.floor(reveal * (S.N - 1));
+    S.panel.count = count;
+    var fan = ease(clamp01((t - 0.86) / 0.14));
+
+    var base = camZ - ROOM_Z0;
+    for (var i = 0; i < count; i++) {
+      var z = ROOM_Z0 - i * S.step;
+      var kAligned = (camZ - z) / base;      /* projects to exactly the front page's size */
+      var k = lerp(kAligned, 1, fan);        /* ...until the fan releases them to true size */
+      S.v.set(0, 0.35, z); S.s.set(k, k, 1);
+      S.m4.compose(S.v, S.q, S.s);
+      S.panel.setMatrixAt(i, S.m4);
+    }
+    S.panel.instanceMatrix.needsUpdate = true;
+
+    S.glow.material.opacity = reveal * 0.1;
+
+    /* the troughs go out far to near, and the two nearest stutter */
+    var kill = clamp01((t - 0.72) / 0.20);
+    var col = S.__c || (S.__c = new ctx.THREE.Color());
+    for (var j = 0; j < S.half; j++) {
+      var depth = 1 - (j / S.half);
+      var on = depth > kill;
+      var b = on ? 1 : 0.06;
+      if (on && j >= S.half - 2) {
+        b *= 0.35 + 0.65 * (Math.sin(ctx.clock * 17) * Math.sin(ctx.clock * 6.3) > -0.4 ? 1 : 0);
+      }
+      S.troughs.setColorAt(j * 2 + 1, col.setRGB(0.788 * b, 0.816 * b, 0.855 * b));
+    }
+    if (S.troughs.instanceColor) S.troughs.instanceColor.needsUpdate = true;
+
+    /* the room light dies and the stack keeps its own, so the last thing you see is the
+       tunnel of nested rectangles the clones collapsed into */
+    S.lamp.intensity = lerp(120, 8, clamp01((t - 0.82) / 0.18));
+    S.onPanel.intensity = lerp(30, 95, clamp01((t - 0.72) / 0.28));
   }
 };
 
@@ -239,15 +348,30 @@ export const actFloor = {
   },
 
   camera: function (ctx) {
-    var c = ctx.camera, p = ease(ctx.t);
-    /* the only orbit on the page: a long lens, a fixed 40 degree elevation, azimuth sweeping */
-    var az = lerp(-0.62, 0.42, p), rad = lerp(48, 31, p), el = 40 * Math.PI / 180;
+    /* The only orbit on the page. Elevation is pinned at 40 degrees for the whole act, but
+       the orbit is now staged: hold wide, swing in over the intake, traverse the belt, rise
+       for the press, settle. */
+    var KEYS = [
+      { t: 0.00, az: -0.72, rad: 50, look: [-2.0, 2.4, 0] },
+      { t: 0.20, az: -0.46, rad: 44, look: [-4.0, 2.0, 0] },
+      { t: 0.44, az: -0.10, rad: 36, look: [0.0, 1.4, 0] },
+      { t: 0.66, az: 0.18, rad: 30, look: [3.0, 1.6, 0] },
+      { t: 0.86, az: 0.36, rad: 26, look: [3.4, 2.2, 0] },
+      { t: 1.00, az: 0.44, rad: 29, look: [2.0, 1.4, 0] }
+    ];
+    var t = ctx.t, i = 0;
+    while (i < KEYS.length - 2 && t > KEYS[i + 1].t) i++;
+    var a = KEYS[i], b = KEYS[i + 1];
+    var k = ease(clamp01((t - a.t) / Math.max(1e-6, b.t - a.t)));
+    var az = lerp(a.az, b.az, k), rad = lerp(a.rad, b.rad, k), el = 40 * Math.PI / 180;
+    var lx = lerp(a.look[0], b.look[0], k), ly = lerp(a.look[1], b.look[1], k);
+    var c = ctx.camera;
     c.position.set(
-      Math.sin(az) * rad * Math.cos(el),
+      Math.sin(az) * rad * Math.cos(el) + lx,
       Math.sin(el) * rad,
       Math.cos(az) * rad * Math.cos(el)
     );
-    c.lookAt(3.4, 1.0, 0);        /* the machine sits left of the copy column */
+    c.lookAt(lx, ly, 0);
   },
 
   frame: function (ctx) {
@@ -347,13 +471,18 @@ export const actRun = {
   },
 
   camera: function (ctx) {
-    var c = ctx.camera, S = ctx.actState;
-    /* front loaded: most of the distance early, so it decelerates into the exit */
-    var p = easeOut(ctx.t);
-    var z = lerp(6, S.end - 6, p);
-    c.position.set(ctx.pointer.x * 1.15, ctx.pointer.y * -0.7, z);
-    c.rotation.z = Math.sin(ctx.clock * 1.6) * 0.014;
-    c.lookAt(ctx.pointer.x * 0.5, ctx.pointer.y * -0.3, z - 11);
+    var c = ctx.camera, S = ctx.actState, t = ctx.t;
+    /* Held at the mouth, then the fastest run on the page, front loaded so it decelerates
+       hard into the exit. The bank is scored off t, not the clock, so scrubbing is exact. */
+    var p = t < 0.08 ? lerp(0, 0.02, t / 0.08)
+                     : 0.30 * t + 0.70 * (1 - Math.pow(1 - t, 2.2));
+    var z = lerp(9, S.end - 7, p);
+    var bank = Math.sin(t * Math.PI * 3.1) * 0.016 * (1 - t);
+    var lat = Math.sin(t * Math.PI * 2.2) * 0.9;
+    c.position.set(lat + ctx.pointer.x * 1.0, ctx.pointer.y * -0.6, z);
+    c.rotation.set(0, 0, 0);
+    c.lookAt(lat * 0.4 + ctx.pointer.x * 0.4, ctx.pointer.y * -0.25, z - 11);
+    c.rotation.z += bank;
   }
 };
 
@@ -433,21 +562,43 @@ export const actInstrument = {
     cubes.instanceMatrix.needsUpdate = true;
     rings[2].add(cubes);
 
+    /* the rig carries the whole instrument, so the CAMERA can stay welded in place while
+       the object still travels: the journey belongs to the thing being looked at */
+    var rig = new T.Group();
+    rig.position.set(0, 0, -10.5);
+    rings.forEach(function (r) { rig.add(r); });   /* add() reparents off root */
+    root.add(rig);
+    S.rig = rig;
+
     S.rings = rings;
     root.add(new T.AmbientLight(0xffffff, 1));
   },
 
   camera: function (ctx) {
     var c = ctx.camera;
-    /* never moves, and sits off axis so the instrument holds the frame beside the copy */
+    /* never moves. not once, on any axis, for the whole act. the lens scores the first
+       three beats and then locks: a stopped machine under a still lens is the point. */
     c.position.set(3.6, 0, 20);
     c.rotation.set(0, 0, 0);
-    c.fov = lerp(34, 31, ctx.t);
-    c.updateProjectionMatrix();
+    var t = ctx.t;
+    var fov = t < 0.28 ? lerp(34, 32, ease(t / 0.28))
+            : t < 0.62 ? lerp(32, 29.5, ease((t - 0.28) / 0.34))
+            : t < 0.76 ? lerp(29.5, 31, ease((t - 0.62) / 0.14))
+            : 31;
+    if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
   },
 
   frame: function (ctx) {
     var S = ctx.actState, t = ctx.t;
+
+    /* the instrument comes to the viewer, then settles and locks */
+    var rz = t < 0.30 ? lerp(-10.5, -2.0, ease(t / 0.30))
+           : t < 0.62 ? lerp(-2.0, 2.6, ease((t - 0.30) / 0.32))
+           : t < 0.78 ? lerp(2.6, 4.4, ease((t - 0.62) / 0.16))
+           : 4.4;
+    S.rig.position.z = rz;
+    S.rig.rotation.x = lerp(0.34, 0.02, ease(clamp01(t / 0.62)));
+    S.rig.position.y = lerp(-1.6, 0, ease(clamp01(t / 0.5)));
     /* spin is driven by scroll, not the clock, so scrolling back unwinds it exactly */
     S.rings[0].rotation.z = t * 2.1;
     S.rings[1].rotation.z = -t * 2.8;
@@ -471,6 +622,14 @@ export const actInstrument = {
  * One slab bisected by a rising bar of light. Cold blueprint below, warm solid above.
  * Camera: the only vertical crane on the page. Scale: a 16m hall. Accent: ember + ice.
  * ========================================================================== */
+/* the seam height, needed by both the camera and the frame so they never disagree */
+function kilnBarY(t, drag) {
+  var p = t < 0.10 ? 0
+        : t < 0.72 ? ease((t - 0.10) / 0.62)
+        : 1;
+  return lerp(0.75, 5.3, p) + (drag || 0);
+}
+
 export const actKiln = {
   id: "kiln", accent: "#FF7A18", bg: 0x0F0B07, fov: 46, restT: 0.7,
   fog: function (T) { return new T.FogExp2(0x0F0B07, 0.026); },
@@ -578,15 +737,23 @@ export const actKiln = {
   },
 
   camera: function (ctx) {
-    var c = ctx.camera, p = ease(ctx.t);
-    var barY = lerp(1.1, 5.2, p);
-    c.position.set(-2.4 + ctx.pointer.x * 0.5, barY + 0.7, 9.6);
-    c.lookAt(-2.4, barY, 0);     /* the slab holds the right of frame, beside the copy */
+    /* The only vertical crane on the page, now staged: stand back in the dark end, close
+       in as the seam starts to bite, ride it up at eye level, then pull back to see the
+       whole finished slab against the roof frame. No forward-and-back wandering: the
+       dominant motion is always Y. */
+    var t = ctx.t, barY = kilnBarY(t, ctx.actState.drag);
+    var dist = t < 0.14 ? lerp(13.4, 10.2, ease(t / 0.14))
+             : t < 0.62 ? lerp(10.2, 8.4, ease((t - 0.14) / 0.48))
+             : t < 0.86 ? lerp(8.4, 9.2, ease((t - 0.62) / 0.24))
+             : lerp(9.2, 11.6, ease((t - 0.86) / 0.14));
+    var c = ctx.camera;
+    c.position.set(-2.4 + ctx.pointer.x * 0.5, barY + 0.7, dist);
+    c.lookAt(-2.4, barY - 0.15, 0);
   },
 
   frame: function (ctx) {
-    var S = ctx.actState, p = ease(ctx.t);
-    var barY = lerp(0.9, 4.9, p) + (S.drag || 0);
+    var S = ctx.actState;
+    var barY = kilnBarY(ctx.t, S.drag);
     S.below.constant = barY;
     S.above.constant = -barY;
     S.bar.position.y = barY;
@@ -684,11 +851,27 @@ export const actLedger = {
   },
 
   camera: function (ctx) {
-    var c = ctx.camera, p = ease(ctx.t);
-    c.position.set(lerp(-120, 120, p), 90, 120);
-    c.lookAt(lerp(-120, 120, p), 0, 0);
-    c.zoom = lerp(0.55, 1.2, p);
-    c.updateProjectionMatrix();
+    /* An orthographic truck across the sheet. No perspective, no vanishing point, so the
+       only cues are lateral travel and zoom. Staged: read the whole field wide, close on
+       the ruled rows, arrive at the one claimed plot, then pull back off it and end
+       looking at unclaimed ground, which is the point. */
+    var KEYS = [
+      { t: 0.00, x: -190, zoom: 0.34 },
+      { t: 0.22, x: -96, zoom: 0.52 },
+      { t: 0.46, x: -28, zoom: 0.86 },
+      { t: 0.68, x: 2, zoom: 1.25 },
+      { t: 0.86, x: 40, zoom: 0.92 },
+      { t: 1.00, x: 118, zoom: 0.58 }
+    ];
+    var t = ctx.t, i = 0;
+    while (i < KEYS.length - 2 && t > KEYS[i + 1].t) i++;
+    var a = KEYS[i], b = KEYS[i + 1];
+    var k = ease(clamp01((t - a.t) / Math.max(1e-6, b.t - a.t)));
+    var x = lerp(a.x, b.x, k), zoom = lerp(a.zoom, b.zoom, k);
+    var c = ctx.camera;
+    c.position.set(x, 90, 120);
+    c.lookAt(x, 0, 0);
+    if (Math.abs(c.zoom - zoom) > 0.0005) { c.zoom = zoom; c.updateProjectionMatrix(); }
   }
 };
 
@@ -764,8 +947,15 @@ export const actCommission = {
   camera: function (ctx) {
     var c = ctx.camera;
     /* pushes in, then stops dead and stays square for the rest of the act */
-    var p = ease(clamp01(ctx.t / 0.6));
-    c.position.set(3.4, 1.1, lerp(26, 14.5, p));
+    /* Approach, close, arrive, then STOP DEAD at t 0.60 and never write position, rotation
+       or fov again. It is the only camera on the page that comes to a complete square rest,
+       and that stillness is the entire reason the price beat lands. */
+    var t = ctx.t;
+    var z = t < 0.18 ? lerp(26, 21, ease(t / 0.18))
+          : t < 0.40 ? lerp(21, 17.2, ease((t - 0.18) / 0.22))
+          : t < 0.60 ? lerp(17.2, 14.5, ease((t - 0.40) / 0.20))
+          : 14.5;
+    c.position.set(3.4, 1.1, z);
     c.rotation.set(0, 0, 0);
     c.lookAt(3.4, 1.1, 0);       /* the object holds the left, the price holds the right */
   },

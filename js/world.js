@@ -256,6 +256,38 @@ export function radialShadow(THREE, renderer) {
   });
 }
 
+/* A camera journey: keyframes of {t, pos:[x,y,z], look:[x,y,z], fov}. Each leg is eased
+   independently, so an act reads as a sequence of moves (approach, arrive, traverse, settle)
+   rather than one long lerp. Driven entirely by scroll position, so scrubbing back is exact. */
+export function flyPath(keys, t, camera, opts) {
+  var i = 0;
+  while (i < keys.length - 2 && t > keys[i + 1].t) i++;
+  var a = keys[i], b = keys[i + 1];
+  var span = Math.max(1e-6, b.t - a.t);
+  var raw = clamp01((t - a.t) / span);
+  var k = (opts && opts.linear) ? raw : ease(raw);
+  var px = lerp(a.pos[0], b.pos[0], k), py = lerp(a.pos[1], b.pos[1], k), pz = lerp(a.pos[2], b.pos[2], k);
+  var lx = lerp(a.look[0], b.look[0], k), ly = lerp(a.look[1], b.look[1], k), lz = lerp(a.look[2], b.look[2], k);
+  var drift = opts && opts.drift ? opts.drift : 0;
+  if (drift && opts.pointer) {
+    px += opts.pointer.x * drift;
+    py += -opts.pointer.y * drift * 0.6;
+  }
+  camera.position.set(px, py, pz);
+  if (opts && opts.noRotate) {
+    camera.rotation.set(0, 0, 0);
+  } else {
+    camera.lookAt(lx, ly, lz);
+  }
+  var f = lerp(a.fov, b.fov, k);
+  if (camera.isOrthographicCamera) {
+    if (camera.zoom !== f) { camera.zoom = f; camera.updateProjectionMatrix(); }
+  } else if (Math.abs(camera.fov - f) > 0.001) {
+    camera.fov = f; camera.updateProjectionMatrix();
+  }
+  return k;
+}
+
 export function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 export function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 export function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }

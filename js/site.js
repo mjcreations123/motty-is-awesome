@@ -70,6 +70,44 @@
     }
   }
 
+  /* ---------- sub-beats: a long act is a scene with parts, not one caption ---------- */
+  var subsByAct = acts.map(function (el) {
+    var list = $$(".sub", el);
+    if (!list.length) return null;
+    var rail = doc.createElement("span");
+    rail.className = "sub-rail";
+    list.forEach(function () { rail.appendChild(doc.createElement("i")); });
+    var host = $(".act__copy", el);
+    if (host) host.appendChild(rail);
+    return {
+      list: list,
+      pips: $$("i", rail),
+      ranges: list.map(function (s, i) {
+        var from = parseFloat(s.getAttribute("data-from"));
+        var to = parseFloat(s.getAttribute("data-to"));
+        if (isNaN(from)) from = i / list.length;
+        if (isNaN(to)) to = (i + 1) / list.length;
+        return [from, to];
+      }),
+      live: -1
+    };
+  });
+
+  function driveSubs(idx, t) {
+    var S = subsByAct[idx];
+    if (!S) return;
+    var want = S.ranges.length - 1;
+    for (var i = 0; i < S.ranges.length; i++) {
+      if (t >= S.ranges[i][0] && t < S.ranges[i][1]) { want = i; break; }
+    }
+    if (want === S.live) return;
+    S.live = want;
+    for (var j = 0; j < S.list.length; j++) {
+      S.list[j].classList.toggle("is-live", j === want);
+      S.pips[j].classList.toggle("on", j <= want);
+    }
+  }
+
   /* ---------- the scroll driver ---------- */
   var geom = [];
   function measureGeom() {
@@ -88,13 +126,14 @@
     var t = clamp((y - g.top) / span, 0, 1);
 
     setAct(idx);
+    driveSubs(idx, t);
 
     /* the shutter: the world hands over through black rather than through a scroll position */
     var fade = 1;
     if (g.dom) fade = 0;
     else {
-      var inRamp = idx === 0 ? 1 : clamp(t / 0.05, 0, 1);
-      var outRamp = idx === geom.length - 1 ? 1 : clamp((1 - t) / 0.05, 0, 1);
+      var inRamp = idx === 0 ? 1 : clamp(t / 0.035, 0, 1);
+      var outRamp = idx === geom.length - 1 ? 1 : clamp((1 - t) / 0.035, 0, 1);
       fade = Math.min(inRamp, outRamp);
     }
     if (world) world.drive(idx, t, fade);
