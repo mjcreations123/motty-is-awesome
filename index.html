@@ -14,13 +14,16 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=35">
-<link rel="stylesheet" href="css/acts.css?v=35">
+<link rel="stylesheet" href="css/site.css?v=36">
+<link rel="stylesheet" href="css/acts.css?v=36">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
 
 <canvas id="world" aria-hidden="true"></canvas>
+<!-- the refusal counter lives inside an aria-hidden chrome layer, so the one interaction on
+     the page needs somewhere to say out loud that it did something -->
+<p id="refused-status" class="sr-only" role="status" aria-live="polite"></p>
 <div class="vignette" aria-hidden="true"></div>
 <div class="scan" aria-hidden="true"></div>
 
@@ -169,7 +172,7 @@
           <p class="lede">04 <i>/</i> the refusal pass</p>
           <h2>Refusing is something you do, not something you have.</h2>
           <p class="say">A list is worth nothing unless something acts on it every time, without being asked. Try one yourself and it stays refused for as long as you are here.</p>
-          <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it</span><span class="m">tap any panel to refuse it</span></p>
+          <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it, or press R</span><span class="m">tap any panel to refuse it</span></p>
         </div>
         <div class="sub" data-from="0.66" data-to="1.01">
           <p class="lede">04 <i>/</i> the refusal pass</p>
@@ -230,7 +233,7 @@
           <p class="lede">06 <i>/</i> decided or default</p>
           <h2>A default is somebody else's decision wearing your client's name.</h2>
           <p class="say">There is no third state. Work is either decided or inherited, and nothing is allowed to ship from underneath the line.</p>
-          <p class="cue cue--act"><i class="blip"></i><span class="d">drag the line of heat</span><span class="m">drag the line of heat</span></p>
+          <p class="cue cue--act"><i class="blip"></i><span class="d">drag the line of heat</span><span class="m">tap high or low to move the line</span></p>
         </div>
       </div>
     </div>
@@ -251,17 +254,17 @@
 
         <dl class="record-list">
           <div><dt>type scale</dt><dd>set</dd></div>
-          <div><dt>motion budget</dt><dd><span class="bar" style="--w:8" aria-label="withheld"></span></dd></div>
+          <div><dt>motion budget</dt><dd><span class="bar" role="img" style="--w:8" aria-label="withheld"></span></dd></div>
           <div><dt>contrast floor</dt><dd>set</dd></div>
-          <div><dt>grid attitude</dt><dd><span class="bar" style="--w:11" aria-label="withheld"></span></dd></div>
+          <div><dt>grid attitude</dt><dd><span class="bar" role="img" style="--w:11" aria-label="withheld"></span></dd></div>
           <div><dt>ground</dt><dd>set</dd></div>
-          <div><dt>accent policy</dt><dd><span class="bar" style="--w:9" aria-label="withheld"></span></dd></div>
+          <div><dt>accent policy</dt><dd><span class="bar" role="img" style="--w:9" aria-label="withheld"></span></dd></div>
           <div><dt>macrostructure</dt><dd>set</dd></div>
-          <div><dt>signature</dt><dd><span class="bar" style="--w:14" aria-label="withheld"></span></dd></div>
+          <div><dt>signature</dt><dd><span class="bar" role="img" style="--w:14" aria-label="withheld"></span></dd></div>
           <div><dt>imagery policy</dt><dd>set</dd></div>
-          <div><dt>rhythm</dt><dd><span class="bar" style="--w:10" aria-label="withheld"></span></dd></div>
+          <div><dt>rhythm</dt><dd><span class="bar" role="img" style="--w:10" aria-label="withheld"></span></dd></div>
           <div><dt>weight</dt><dd>set</dd></div>
-          <div><dt>temperature</dt><dd><span class="bar" style="--w:12" aria-label="withheld"></span></dd></div>
+          <div><dt>temperature</dt><dd><span class="bar" role="img" style="--w:12" aria-label="withheld"></span></dd></div>
           <div><dt>voice</dt><dd>set</dd></div>
         </dl>
       </div>
@@ -351,6 +354,6 @@
   }
 }
 </script>
-<script src="js/site.js?v=35"></script>
+<script src="js/site.js?v=36"></script>
 </body>
 </html>

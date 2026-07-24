@@ -69,6 +69,7 @@ export function createWorld(THREE, canvas, acts, hooks) {
     ctx.pickable = s.pickable;
     ctx.actState = ctx.state[act.id] = ctx.state[act.id] || {};
 
+    grab.on = false; grab.dy = 0;          /* the handle belongs to the act, not to the page */
     if (act.bg != null) bgTarget.set(act.bg);
     scene.fog = act.fog ? act.fog(THREE) : null;
     ctx.camera = act.ortho ? ortho : persp;
@@ -104,6 +105,36 @@ export function createWorld(THREE, canvas, acts, hooks) {
   }
   canvas.addEventListener("pointerup", function (e) { pickAt(e.clientX, e.clientY); });
 
+  /* A handle the visitor can take hold of, offered by any act that sets `grab: true`.
+     The engine owns the listeners for two reasons: an act never has to guard against firing
+     while it is not the live one, and the handle is dropped the instant the page cuts away.
+     grab.dy is normalised viewport units, so an act scales it into its own world.
+     Mouse gets a real drag. Touch gets a tap, because a vertical drag on a phone is the
+     page scrolling and an interaction must never fight the scroll for the same gesture. */
+  var grab = { on: false, dy: 0, y0: 0, base: 0 };
+  ctx.grab = grab;
+  function grabbable() {
+    var s = slots[activeIndex];
+    return !!(s && s.act.grab);
+  }
+  canvas.addEventListener("pointerdown", function (e) {
+    if (!grabbable()) return;
+    if (e.pointerType === "touch") {
+      grab.dy = -((e.clientY / window.innerHeight) * 2 - 1);
+      return;
+    }
+    grab.on = true; grab.y0 = e.clientY; grab.base = grab.dy;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* no capture, drag still works */ }
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!grab.on) return;
+    grab.dy = grab.base - ((e.clientY - grab.y0) / window.innerHeight) * 2;
+    if (grab.dy > 1) grab.dy = 1; else if (grab.dy < -1) grab.dy = -1;
+  });
+  function release() { grab.on = false; }
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false);
@@ -137,8 +168,13 @@ export function createWorld(THREE, canvas, acts, hooks) {
     }
     if (!s || !s.root || drive.fade <= 0.004) return;   /* DOM act, or shutter closed */
 
-    pointer.x += (pointer.tx - pointer.x) * 0.05;
-    pointer.y += (pointer.ty - pointer.y) * 0.05;
+    /* Three acts add the pointer straight into the camera position, and camera() runs every
+       frame even in the reduced-motion branch. Left running, this gave somebody who asked
+       for less motion a camera that follows the mouse continuously. */
+    if (!reduce) {
+      pointer.x += (pointer.tx - pointer.x) * 0.05;
+      pointer.y += (pointer.ty - pointer.y) * 0.05;
+    }
 
     ctx.t = reduce ? (s.act.restT != null ? s.act.restT : 0.72) : drive.t;
     ctx.clock = clock;
@@ -152,8 +188,16 @@ export function createWorld(THREE, canvas, acts, hooks) {
 
     if (s.act.camera) s.act.camera(ctx);
     if (s.act.frame && !reduce) s.act.frame(ctx);
-    else if (s.act.frame && reduce && !ctx.actState.__staticDone) {
-      s.act.frame(ctx); ctx.actState.__staticDone = true;
+    else if (s.act.frame) {
+      /* Reduced motion runs frame() once and latches, which is right for anything driven by
+         the clock. It is wrong for an act whose state is driven by the visitor's own hand:
+         the kiln's seam lives in frame(), so latching left a reduced-motion visitor able to
+         take the handle and watch the camera follow a seam that never moved. */
+      if (!ctx.actState.__staticDone || (s.act.grab && grab.dy !== ctx.actState.__lastDy)) {
+        s.act.frame(ctx);
+        ctx.actState.__staticDone = true;
+        ctx.actState.__lastDy = grab.dy;
+      }
     }
 
     renderer.render(scene, ctx.camera);
@@ -168,6 +212,28 @@ export function createWorld(THREE, canvas, acts, hooks) {
   return {
     drive: function (index, t, fade) { drive.index = index; drive.t = t; drive.fade = fade; },
     step: function () { render(); },
+
+    /* Keyboard paths for the two things the page offers a pointer. The engine forwards to
+       whichever act is live, so no act has to know a key handler exists and no key handler
+       has to know which act is on screen. Both are no-ops on acts that do not offer them. */
+    refuseNearest: function () {
+      var s = slots[activeIndex];
+      if (s && s.act.refuseNearest) return s.act.refuseNearest(ctx);
+      return false;
+    },
+    nudgeGrab: function (dir) {
+      var s = slots[activeIndex];
+      if (!s || !s.act.grab) return false;
+      grab.dy = Math.max(-1, Math.min(1, grab.dy + dir * 0.08));
+      return true;
+    },
+    /* what the live act lets the visitor do, so the page can label the canvas honestly
+       instead of the page and the world each guessing about the other */
+    affords: function () {
+      var s = slots[activeIndex];
+      return { grab: !!(s && s.act.grab), refuse: !!(s && s.act.refuseNearest) };
+    },
+
     ctx: ctx,
     renderer: renderer
   };

@@ -11,6 +11,10 @@
   var $ = function (s, r) { return (r || doc).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || doc).querySelectorAll(s)); };
   var reduce = win.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* The engine branches its handle on pointer type, so the cue that describes that handle
+     has to branch on the same thing. Switching it on viewport width told a touch tablet
+     wider than 860px to drag something that only ever answers to a tap. */
+  if (win.matchMedia("(pointer: coarse)").matches) root.classList.add("is-coarse");
   var clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
 
   var acts = $$(".act");
@@ -76,6 +80,7 @@
 
   function setAct(i) {
     if (i === current) return;
+    if (current >= 0) retireSubs(current);
     current = i;
     var a = acts[i];
     if (hudSect) hudSect.textContent = ("0" + (i + 1)).slice(-2);
@@ -83,12 +88,22 @@
     setAccent(i);
   }
 
+  var refusedStatus = $("#refused-status"), sayRefused = 0;
   function bumpRefused(n) {
     refused += (n || 1);
     var s = ("00" + refused).slice(-3);
     if (hudCount) hudCount.textContent = s;
     if (hudTotal) hudTotal.textContent = s;
     root.classList.add("has-refused");
+    /* Both counters sit inside aria-hidden chrome, so without this the one interaction on
+       the page gives a screen reader nothing at all. Coalesced, because act 03 refuses a
+       batch in a single call and a live region should not read a running commentary. */
+    if (refusedStatus) {
+      clearTimeout(sayRefused);
+      sayRefused = setTimeout(function () {
+        refusedStatus.textContent = refused + (refused === 1 ? " page refused" : " pages refused");
+      }, 350);
+    }
   }
 
   /* ---------- reveal: bulletproof, works without observers ---------- */
@@ -123,6 +138,25 @@
     };
   });
 
+  /* Every sub-beat starts out of the tab order and out of the accessibility tree, because
+     every one of them starts invisible. driveSubs only ever touches the act you are in, so
+     without this the other eight acts kept all their hidden copy focusable: the price
+     button sat at tab stop two, eight acts before it appears on screen. */
+  if (!reduce) {
+    subsByAct.forEach(function (S) {
+      if (S) S.list.forEach(function (el) { el.inert = true; });
+    });
+  }
+
+  /* leaving an act puts its copy back out of reach, and forgets which beat was live so it
+     is recomputed rather than restored on the way back in */
+  function retireSubs(i) {
+    var S = subsByAct[i];
+    if (!S || reduce) return;
+    S.list.forEach(function (el) { el.inert = true; });
+    S.live = -1;
+  }
+
   function driveSubs(idx, t) {
     var S = subsByAct[idx];
     if (!S) return;
@@ -135,6 +169,11 @@
     for (var j = 0; j < S.list.length; j++) {
       S.list[j].classList.toggle("is-live", j === want);
       S.pips[j].classList.toggle("on", j <= want);
+      /* Opacity hides a block from the eye and from nobody else: the price button sat at
+         tab stop two, operable eight acts before it appears. inert takes the block out of
+         the tab order and the accessibility tree together. Not under reduced motion, where
+         every sub-beat is stacked and visible on purpose and all of it must stay readable. */
+      if (!reduce) S.list[j].inert = (j !== want);
     }
   }
 
@@ -238,11 +277,42 @@
   }
   if (buy) buy.addEventListener("click", flipPrice);
 
-  /* ---------- keyboard: refuse without a mouse ---------- */
-  doc.addEventListener("keydown", function (e) {
-    if (e.key === "r" || e.key === "R") {
-      if (current === 3 && world && world.refuseNearest) world.refuseNearest();
+  /* ---------- keyboard: every pointer affordance has one ----------
+     The canvas is one element shared by nine acts, so it becomes focusable only while the
+     live act actually offers something, and it says what it offers. Arrow keys operate the
+     seam only once the canvas is focused, because arrows are how a keyboard scrolls a page
+     and an interaction must never take the scroll away from someone who needs it. */
+  var LABELS = {
+    refuse: "The output run. Press R to refuse a page.",
+    grab: "The kiln. Use the up and down arrow keys to move the line of heat."
+  };
+  /* Driven by the world's own act change, never by the page's. The page switches act on the
+     scroll frame; the world switches on its next render, so asking the world during the page's
+     switch labels the canvas for the act that just ended. */
+  function labelCanvas(act) {
+    if (!act) return;
+    var kind = act.refuseNearest ? "refuse" : act.grab ? "grab" : null;
+    if (kind) {
+      canvas.setAttribute("tabindex", "0");
+      canvas.setAttribute("role", "application");
+      canvas.setAttribute("aria-label", LABELS[kind]);
+    } else {
+      canvas.removeAttribute("tabindex");
+      canvas.removeAttribute("role");
+      canvas.setAttribute("aria-hidden", "true");
     }
+    if (kind) canvas.removeAttribute("aria-hidden");
+  }
+
+  doc.addEventListener("keydown", function (e) {
+    if (!world) return;
+    if (e.key === "r" || e.key === "R") {
+      if (world.refuseNearest()) e.preventDefault();
+      return;
+    }
+    if (doc.activeElement !== canvas) return;
+    if (e.key === "ArrowUp" && world.nudgeGrab(1)) e.preventDefault();
+    else if (e.key === "ArrowDown" && world.nudgeGrab(-1)) e.preventDefault();
   });
 
   /* ================= the world, strictly an enhancement ================= */
@@ -261,12 +331,16 @@
     return import("three").then(function (THREE) {
       var w = W.createWorld(THREE, canvas, A.ACTS, {
         onRefuse: function (n) { bumpRefused(n); },
-        onAct: function () {}
+        onAct: function (i, act) { labelCanvas(act); }
       });
       w.ctx.hooks = { onRefuse: function (n) { bumpRefused(n); } };
       world = w;
       root.classList.add("world-on");
       update();
+      /* a handle for the verification harness, off unless it is asked for. the automation
+         browser reports the tab as hidden, so rAF is paused and frames have to be stepped
+         by hand to check anything numerically. */
+      if (win.location.search.indexOf("probe") > -1) win.__world = w;
       return w;
     });
   }).catch(function () {

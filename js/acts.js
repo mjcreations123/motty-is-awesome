@@ -600,16 +600,35 @@ export const actRun = {
     root.add(streak);
 
     S.mesh = mesh; S.end = -(LAYERS - 1) * GAP; S.gone = {};
-    S.stamp = new T.Color(0xFF3B21); S.count = cells.length;
+    S.stamp = new T.Color(0xFF3B21); S.count = cells.length; S.cells = cells;
   },
 
-  pick: function (ctx, hit) {
+  refuse: function (ctx, id) {
     var S = ctx.actState;
-    if (hit.instanceId == null || S.gone[hit.instanceId]) return;
-    S.gone[hit.instanceId] = 1;
-    S.mesh.setColorAt(hit.instanceId, S.stamp);
+    if (id == null || S.gone[id]) return false;
+    S.gone[id] = 1;
+    S.mesh.setColorAt(id, S.stamp);
     if (S.mesh.instanceColor) S.mesh.instanceColor.needsUpdate = true;
     if (ctx.hooks.onRefuse) ctx.hooks.onRefuse(1);
+    return true;
+  },
+
+  pick: function (ctx, hit) { actRun.refuse(ctx, hit.instanceId); },
+
+  /* The keyboard path for the one interaction on the page. It refuses the nearest panel
+     still standing ahead of the camera, so somebody who never touches a pointer gets the
+     same thing a click gives, rather than a cue describing something they cannot do. */
+  refuseNearest: function (ctx) {
+    var S = ctx.actState, camZ = ctx.camera.position.z;
+    if (!S.mesh) return false;
+    var best = -1, bestD = Infinity;
+    for (var i = 0; i < S.count; i++) {
+      if (S.gone[i]) continue;
+      var dz = S.cells[i][2] - camZ;
+      if (dz > 0) continue;                     /* already flown past */
+      if (-dz < bestD) { bestD = -dz; best = i; }
+    }
+    return actRun.refuse(ctx, best < 0 ? null : best);
   },
 
   camera: function (ctx) {
@@ -958,11 +977,15 @@ function kilnBarY(t, drag) {
   var p = t < 0.10 ? 0
         : t < 0.72 ? ease((t - 0.10) / 0.62)
         : 1;
-  return lerp(0.75, 5.3, p) + (drag || 0);
+  var y = lerp(0.75, 5.3, p) + (drag || 0) * 2.4;
+  return y < 0.30 ? 0.30 : y > 5.60 ? 5.60 : y;   /* the seam never leaves the slab */
 }
+/* the visitor's own offset, taken from the engine's shared handle rather than from a
+   listener this act would have to guard. zero until somebody actually takes hold of it. */
+function kilnDrag(ctx) { return ctx.grab ? ctx.grab.dy : 0; }
 
 export const actKiln = {
-  id: "kiln", accent: "#FF7A18", bg: 0x0F0B07, fov: 46, restT: 0.7,
+  id: "kiln", accent: "#FF7A18", bg: 0x0F0B07, fov: 46, restT: 0.7, grab: true,
   fog: function (T) { return new T.FogExp2(0x0F0B07, 0.026); },
 
   build: function (ctx) {
@@ -1072,7 +1095,7 @@ export const actKiln = {
        in as the seam starts to bite, ride it up at eye level, then pull back to see the
        whole finished slab against the roof frame. No forward-and-back wandering: the
        dominant motion is always Y. */
-    var t = ctx.t, barY = kilnBarY(t, ctx.actState.drag);
+    var t = ctx.t, barY = kilnBarY(t, kilnDrag(ctx));
     var dist = t < 0.14 ? lerp(13.4, 10.2, ease(t / 0.14))
              : t < 0.62 ? lerp(10.2, 8.4, ease((t - 0.14) / 0.48))
              : t < 0.86 ? lerp(8.4, 9.2, ease((t - 0.62) / 0.24))
@@ -1084,7 +1107,7 @@ export const actKiln = {
 
   frame: function (ctx) {
     var S = ctx.actState;
-    var barY = kilnBarY(ctx.t, S.drag);
+    var barY = kilnBarY(ctx.t, kilnDrag(ctx));
     S.below.constant = barY;
     S.above.constant = -barY;
     S.bar.position.y = barY;

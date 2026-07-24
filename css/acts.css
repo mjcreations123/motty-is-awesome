@@ -18,11 +18,16 @@
 .act__copy{position:relative;z-index:1;width:min(100%,545px);pointer-events:auto}
 .act--right .act__copy{margin-left:auto}
 
-/* ---------------- sub-beats: the copy advances as the camera travels ---------------- */
-.act--scene .act__copy{min-height:clamp(300px,42vh,440px);display:flex;align-items:center}
-.sub{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+/* ---------------- sub-beats: the copy advances as the camera travels ----------------
+   Only the JS path stacks and hides these, because only the JS path can bring them back.
+   `is-live` is added by site.js and by nothing else, so an unscoped `opacity:0` here would
+   leave every word in eight of the nine acts invisible the moment JavaScript is missing.
+   With no JS they simply stack and read as paragraphs, which is what they already are. */
+.sub{position:relative;margin-bottom:2.5rem}
+.js .act--scene .act__copy{min-height:clamp(300px,42vh,440px);display:flex;align-items:center}
+.js .sub{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);margin-bottom:0;
   opacity:0;pointer-events:none;transition:opacity .45s ease}
-.sub.is-live{opacity:1;pointer-events:auto}
+.js .sub.is-live{opacity:1;pointer-events:auto}
 .js .sub > *{opacity:0;clip-path:inset(0 100% -0.45em 0);
   transition:opacity .45s ease,clip-path .9s cubic-bezier(.16,.84,.28,1)}
 .js .sub.is-live > *{opacity:1;clip-path:inset(-0.4em -0.6em -0.5em -0.3em)}
@@ -35,13 +40,26 @@
 .sub-rail i.on{background:var(--accent)}
 html.is-pale .sub-rail i{background:rgba(20,22,26,.2)}
 @media (prefers-reduced-motion:reduce){
-  .sub{position:relative;top:auto;transform:none;opacity:1;margin-bottom:2.5rem}
-  .act--scene .act__copy{display:block;min-height:0}
+  .js .sub{position:relative;top:auto;transform:none;opacity:1;margin-bottom:2.5rem}
+  .js .act--scene .act__copy{display:block;min-height:0}
   .js .sub > *{opacity:1;clip-path:none;transition:none}
 }
+/* A short viewport cannot show a sub-beat that is taller than the pin: the overflow above
+   and below is unreachable, because scrolling advances t rather than revealing the rest of
+   the block. Below this height the acts un-pin and the copy simply stacks and scrolls. */
+@media (max-height:640px){
+  .js .act__pin{position:static;height:auto;min-height:100svh;padding-block:12vh}
+  .js .act--scene .act__copy{display:block;min-height:0}
+  .js .sub{position:relative;top:auto;transform:none;opacity:1;margin-bottom:2.5rem}
+  .js .sub > *{opacity:1;clip-path:none}
+  .h380,.h400,.h440{min-height:0}
+}
 
-/* local scrim: the copy never fights the world behind it */
-.act__copy::before{content:"";position:absolute;z-index:-1;inset:-42% -54% -42% -66%;
+/* Local scrim: the copy never fights the world behind it. It is pure decoration and must
+   never be a hit target. It reaches far outside the copy column by design, and z-index:-1
+   does not save it, because .act__copy is a stacking context: without this line the scrim
+   swallowed clicks across the middle of the screen and both interactions read as broken. */
+.act__copy::before{content:"";position:absolute;z-index:-1;pointer-events:none;inset:-42% -54% -42% -66%;
   background:radial-gradient(62% 56% at 40% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 46%,
     rgba(8,9,11,.9) 66%,rgba(8,9,11,.55) 82%,rgba(8,9,11,0) 100%)}
 .act--right .act__copy::before{inset:-42% -66% -42% -54%;
@@ -148,9 +166,13 @@ html.is-paperworld .vignette,html.is-paperworld .scan{opacity:0}
 .record-list > div{display:grid;grid-template-columns:1fr auto;align-items:baseline;
   gap:10px 18px;padding:11px 0;border-bottom:1px solid var(--line);
   font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase}
-.record-list dt{color:var(--ash);position:relative;overflow:hidden;white-space:nowrap}
-.record-list dt::after{content:" ......................................................";
-  color:var(--steel);letter-spacing:.1em}
+.record-list dt{color:var(--ash);position:relative;overflow:hidden;white-space:nowrap;
+  display:flex;align-items:baseline;gap:8px}
+/* Drawn, not typed. As literal periods this leader was real text, so a screen reader read
+   out fifty-four full stops after every field name on the sheet. */
+.record-list dt::after{content:"";flex:1;height:1px;align-self:center;
+  background-image:radial-gradient(circle,var(--steel) 1px,transparent 1px);
+  background-size:6px 2px;background-repeat:repeat-x;background-position:0 center}
 .record-list dd{color:var(--bone);letter-spacing:.14em}
 .record-list .bar{display:inline-block;height:1.05em;vertical-align:-.18em;
   width:calc(var(--w) * 1ch);background:var(--bone);opacity:.85;user-select:none}
@@ -230,14 +252,20 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
   .rail{display:none}
   .hud-bc{display:none}
   .hud{font-size:9.5px;letter-spacing:.08em}
-  .cue--act .d{display:none}
-  .cue--act .m{display:inline}
   .registry-wrap{grid-template-columns:1fr}
   .tier-block:first-child{grid-column:auto}
   .registry li{grid-template-columns:1fr;row-gap:1px}
   .registry .tier{text-align:left;font-size:9px}
-  .h170,.h190,.h200,.h210,.h240{min-height:170vh}
 }
+/* The cue has to switch on what the pointer can DO, not on how wide the screen is. The
+   engine gives touch a tap and a mouse a drag, so a touch tablet wider than 860px was
+   being told to drag something that only ever responds to a tap. */
+html.is-coarse .cue--act .d{display:none}
+html.is-coarse .cue--act .m{display:inline}
+/* These cues describe the canvas. With no WebGL and no three.js there is no canvas to
+   describe, so they go with it rather than instructing a visitor to click at nothing. */
+.cue--act{display:none}
+html.world-on .cue--act{display:inline-flex}
 @media (max-width:520px){
   .act h1,.act h2{font-size:clamp(27px,7.4vw,38px)}
   .title,.record .pull{font-size:clamp(32px,9.6vw,48px)}
@@ -248,7 +276,10 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
 
 @media (prefers-reduced-motion:reduce){
   .act__pin{position:static;height:auto;min-height:100svh}
-  .h170,.h190,.h200,.h210,.h240{min-height:100svh}
+  /* the sections this page actually uses. the previous list named h170 to h240, which no
+     section carries, so every act stayed four screens tall while its content un-pinned to
+     one, leaving three screens of empty ground per act for anyone who asks for less motion */
+  .h380,.h400,.h440{min-height:100svh}
   .registry li::after{transform:scaleX(1)}
 }
 
@@ -326,3 +357,13 @@ html.is-pale .tags span,html.is-paperworld .tags span{border-color:rgba(20,22,26
 html.is-pale .telem,html.is-pale .gizmo,html.is-pale .draft-label,
 html.is-paperworld .telem,html.is-paperworld .gizmo,html.is-paperworld .draft-label{
   background:rgba(231,228,221,.82);border-color:rgba(20,22,26,.12)}
+
+/* If three.js never lands there is no renderer, so the two blocks that read the renderer
+   have nothing to report. They go, rather than printing zeros as though a zero were a
+   measurement. The measured edge stays, because it reads document scroll, which is real
+   with or without a world. Showing only real state is the whole reason this borrow was
+   defensible in the first place. */
+.telem,.gizmo{display:none}
+html.world-on .telem{display:grid}
+html.world-on .gizmo{display:block}
+@media (max-width:1100px){ html.world-on .telem,html.world-on .gizmo{display:none} }
