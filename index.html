@@ -4,103 +4,154 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>motty is awesome</title>
-<meta name="description" content="A website that makes websites which never look like a machine built them. This one is the proof.">
+<meta name="description" content="Fly through the average website the machine builds every time, past the registry of everything it refuses, and out the other side.">
 <meta property="og:title" content="motty is awesome">
-<meta property="og:description" content="Every site he builds looks like a serious studio made it. None of them look like a robot did. You are looking at one right now.">
+<meta property="og:description" content="You are inside the average. Every panel is the same page the machine builds every time. Keep scrolling and something else is waiting.">
 <meta property="og:type" content="website">
-<link rel="icon" href="img/favicon.svg?v=1" type="image/svg+xml">
+<link rel="icon" href="img/favicon.svg?v=3" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Familjen+Grotesk:wght@400..700&family=Spline+Sans+Mono:wght@400..600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=4">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/site.css?v=9">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
-<div class="grain" aria-hidden="true"></div>
-<div class="fx" aria-hidden="true"><div id="spot"></div></div>
 
-<header class="top">
-  <a class="mark" href="/">MJ&#39;s Studio</a>
-  <nav class="nav" aria-label="Primary">
-    <a href="/" class="here" aria-current="page">Home</a>
-    <a href="/about">About</a>
-  </nav>
-</header>
+<canvas id="world" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<div class="scan" aria-hidden="true"></div>
+
+<!-- pinned instrument frame -->
+<div class="hud" aria-hidden="true">
+  <span class="hud-tl">MJ&#39;s Studio</span>
+  <span class="hud-tr">design dna <i>/</i> build 003</span>
+  <span class="hud-bl"><b id="hud-sect">00</b> <span id="hud-name">boot</span></span>
+  <span class="hud-br">refused <b id="hud-count">000</b></span>
+  <span class="rail"><i id="rail-fill"></i></span>
+</div>
 
 <main>
-  <section class="hero" aria-label="motty is awesome">
-    <div class="stage">
-      <h1 class="title" id="title">motty is awesome</h1>
-      <p class="sub" data-r>A website that makes websites. He will not tell you what is inside it. He does not have to.</p>
-      <span class="cue" data-r><span class="beam" aria-hidden="true"></span><span class="c-desktop">move your cursor</span><span class="c-touch">drag across the words</span></span>
-    </div>
-    <div class="hero-foot" data-r>
-      <div class="hf"><span class="k">The work</span><span class="v">Websites that could only be his.</span></div>
-      <div class="hf"><span class="k">The range</span><span class="v">Any register you can name.</span></div>
-      <div class="hf"><span class="k">The catch</span><span class="v">There isn&#39;t one. Just ask.</span></div>
+
+  <section class="beat beat--open" id="b0" data-name="boot">
+    <div class="panel">
+      <p class="lede">A skill, not a template.</p>
+      <h1>The machine builds the same website every time.</h1>
+      <p class="say">You are standing in it. Every panel around you is that page: one hero, three cards, one call to action, repeated until the fog takes it.</p>
+      <p class="cue"><i class="blip"></i>scroll to fly</p>
     </div>
   </section>
 
-  <section class="sect claim wrap" aria-labelledby="claim">
-    <h2 class="big lede" id="claim" data-r>Every site he builds looks like a <span class="hot">serious studio</span> made it. Not one looks like a <span class="hot">machine</span> did.</h2>
-    <p class="say" data-r>That is a real skill, not a turn of phrase. Ask a hundred people to spot the one a robot made, and they will point everywhere but here.</p>
-  </section>
-
-  <section class="marquee" aria-label="It can be any register you ask for">
-    <div class="mq-track" id="mq">
-      <span class="item">Immersive<span class="dot" aria-hidden="true">&#47;</span></span>
-      <span class="item">Quiet luxury<span class="dot" aria-hidden="true">&#47;</span></span>
-      <span class="item ghost">Plain, but expensive<span class="dot" aria-hidden="true">&#47;</span></span>
-      <span class="item">Loud<span class="dot" aria-hidden="true">&#47;</span></span>
-      <span class="item">Editorial<span class="dot" aria-hidden="true">&#47;</span></span>
-      <span class="item">Whatever you ask for<span class="dot" aria-hidden="true">&#47;</span></span>
+  <section class="beat" id="b1" data-name="the average">
+    <div class="panel">
+      <p class="lede">01 <i>/</i> the average</p>
+      <h2>This is what average looks like from the inside.</h2>
+      <p class="say">It is not a style anyone chose. It is the middle of everything a model was ever trained on, and every model falls into it by reflex. Recognise the shape. You have been sold it before.</p>
     </div>
   </section>
 
-  <section class="sect steps-sect wrap" aria-labelledby="how">
-    <h2 class="big" id="how" data-r>Three steps. <span class="hot">No catch.</span></h2>
-    <div class="steps">
-      <div class="step" data-r><span class="n">01</span><div class="body"><h3>You ask.</h3><p>One sentence about what you need is plenty to start.</p></div></div>
-      <div class="step" data-r><span class="n">02</span><div class="body"><h3>He designs it.</h3><p>From your world, not a template. One real point of view, built all the way up.</p></div></div>
-      <div class="step" data-r><span class="n">03</span><div class="body"><h3>It looks like nothing else.</h3><p>And nothing like a machine made it. That is the whole promise, and the whole trick.</p></div></div>
+  <section class="beat" id="b2" data-name="the refusal">
+    <div class="panel">
+      <p class="lede">02 <i>/</i> the refusal</p>
+      <h2>The skill starts by saying no.</h2>
+      <p class="say">Before a single line of code exists, it goes looking for everything that gives a page away as machine made, and throws it out.</p>
+      <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it</span><span class="m">tap any panel to refuse it</span></p>
     </div>
   </section>
 
-  <section class="sect proof wrap" aria-labelledby="proof">
-    <h2 class="big" id="proof" data-r>You are looking at one <span class="hot">right now.</span></h2>
-    <p class="note" data-r>This exact page was built with it, top to bottom. If it looked machine made, you would have closed the tab three sections ago. <strong>You did not.</strong></p>
+  <section class="beat beat--reg" id="b3" data-name="the registry">
+    <div class="panel">
+      <p class="lede">03 <i>/</i> the registry</p>
+      <h2>It keeps a list of everything that gives you away.</h2>
+      <p class="say">These are real entries, and the walls around you are made of them. The list only ever grows.</p>
+      <ul class="tells" id="tells">
+        <li>em dashes</li>
+        <li>animated count ups</li>
+        <li>purple gradient heroes</li>
+        <li>gradient text</li>
+        <li>a hero and three cards</li>
+        <li>glassmorphism</li>
+        <li>fabricated testimonials</li>
+        <li>stock photo smiles</li>
+        <li>a floating 3D blob</li>
+        <li>elevate your brand</li>
+      </ul>
+    </div>
   </section>
 
-  <div class="curtain wrap">
-    <div class="price" id="price" data-r>
-      <p class="tag">The price</p>
-      <div class="stage">
-        <div class="amount-copy"><p class="amount"><span class="cur">&#36;</span>10,000</p></div>
-        <div class="reveal-copy" role="status" aria-live="polite">
-          <p class="rc-big">Kidding.</p>
-          <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not be on this page.</p>
+  <section class="beat beat--reg" id="b4" data-name="the absolutes">
+    <div class="panel">
+      <p class="lede">04 <i>/</i> the absolutes</p>
+      <h2>Most rules bend. A few never do.</h2>
+      <p class="say">A brief can lift almost anything, and when it does, that gets written down with the reason. A short list is never lifted by anyone, including the person paying: no invented proof, no unreadable contrast, and nothing ships that has not been looked at in a real render.</p>
+    </div>
+  </section>
+
+  <section class="beat" id="b5" data-name="the method">
+    <div class="panel">
+      <p class="lede">05 <i>/</i> the method</p>
+      <h2>Refusing is only half of it.</h2>
+      <p class="say">Strip out the tells and you are left with something plain, which fails just as badly. So every choice gets decided instead of defaulted: the concept, the face, the palette, the bones, and the one moment worth building properly. Written down before anything is built.</p>
+    </div>
+  </section>
+
+  <section class="beat" id="b6" data-name="the ledger">
+    <div class="panel">
+      <p class="lede">06 <i>/</i> the ledger</p>
+      <h2>And it is not allowed to repeat itself.</h2>
+      <p class="say">Every build is logged against the axes that make a look: the ground, the face, the bones, the motion, the signature. The next one has to move on all of them. The fastest way to look machine made is to look exactly like the last thing you made.</p>
+    </div>
+  </section>
+
+  <section class="beat beat--one" id="b7" data-name="the one">
+    <div class="panel">
+      <p class="lede">07 <i>/</i> the one</p>
+      <h2>What comes out the other side.</h2>
+      <p class="say">One page that could not have been generated. That is the only test that matters, and it is the reason you are still scrolling.</p>
+    </div>
+  </section>
+
+  <section class="beat beat--price" id="b8" data-name="the price">
+    <div class="panel">
+      <div class="price" id="price">
+        <p class="lede">08 <i>/</i> the price</p>
+        <div class="stage">
+          <div class="amount-copy"><p class="amount"><span class="cur">&#36;</span>10,000</p></div>
+          <div class="reveal-copy" role="status" aria-live="polite">
+            <p class="rc-big">Kidding.</p>
+            <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not have this link.</p>
+          </div>
+        </div>
+        <div class="buyrow">
+          <button class="buy" id="buy" type="button">Get the skill</button>
+          <span class="fine">one time <i>/</i> yours to keep</span>
         </div>
       </div>
-      <div class="buyrow">
-        <button class="buy" id="buy" type="button">Get the skill</button>
-        <span class="fine" id="fine">one time &#183; yours forever</span>
+    </div>
+  </section>
+
+  <section class="beat beat--end" id="b9" data-name="sign off">
+    <div class="panel">
+      <p class="sign">motty is <em>awesome</em>.</p>
+      <p class="say say--end">He will not tell you what is inside the skill. He does not have to. You just flew through the argument.</p>
+      <div class="colophon">
+        <span>MJ&#39;s Studio</span>
+        <span>a demonstration, not a store</span>
+        <span>2026</span>
       </div>
     </div>
-  </div>
+  </section>
 
-  <footer class="colophon wrap">
-    <div class="grid">
-      <p class="sign" data-r>motty <span class="hot">is</span> awesome.</p>
-      <p class="ask" data-r>Want it? Ask. That is the whole deal.</p>
-    </div>
-    <div class="meta">
-      <span class="tag">MJ&#39;s Studio</span>
-      <span class="tag">A calling card, not a store</span>
-      <span class="tag">2026</span>
-    </div>
-  </footer>
 </main>
 
-<script src="js/site.js?v=4"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+  }
+}
+</script>
+<script src="js/site.js?v=10"></script>
 </body>
 </html>
