@@ -37,6 +37,7 @@
     root.style.setProperty("--accent", accent);
     root.classList.toggle("is-paper", a.hasAttribute("data-paper"));
     root.classList.toggle("is-pale", a.hasAttribute("data-pale"));
+    root.classList.toggle("is-paperworld", a.hasAttribute("data-paperworld"));
     pips.forEach(function (p, n) {
       p.classList.toggle("is-on", n <= i);
       if (n <= i) p.style.background = acts[n].getAttribute("data-accent") || "#E9EBEF";

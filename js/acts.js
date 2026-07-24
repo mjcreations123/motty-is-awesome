@@ -218,8 +218,150 @@ export const actRoom = {
   }
 };
 
-/* 02 — THE REGISTRY. Paper, ink, redaction. Pure DOM, no canvas. */
-export const actRegistry = { id: "registry", accent: "#B82A14", dom: true };
+/* ============================================================================
+ * 02 — THE REGISTRY
+ * A pale archive wall of filed entries, most of them closed. Keeps the tonal
+ * inversion the flat version had, but as a place you travel through rather than a
+ * document you scroll past. Camera: a close tracking shot along the wall.
+ * ========================================================================== */
+export const actRegistry = {
+  id: "registry", accent: "#B82A14", bg: 0xE7E4DD, fov: 46, restT: 0.5,
+  fog: function (T) { return new T.Fog(0xE7E4DD, 30, 110); },
+
+  build: function (ctx) {
+    var T = ctx.THREE, root = ctx.root, S = ctx.actState, small = ctx.small;
+
+    /* an index card, drawn twice: one that can be read and one that cannot */
+    function card(withheld) {
+      return makeTexture(T, ctx.renderer, 256, 160, function (g, w, h) {
+        g.fillStyle = "#F4F2EC"; g.fillRect(0, 0, w, h);
+        g.strokeStyle = "rgba(20,22,26,.34)"; g.lineWidth = 2;
+        g.strokeRect(4, 4, w - 8, h - 8);
+        g.fillStyle = "rgba(20,22,26,.20)"; g.fillRect(16, 26, w - 32, 2);
+        if (withheld) {
+          g.fillStyle = "#3A3730";
+          g.fillRect(16, 44, w - 60, 20);
+          g.fillRect(16, 76, w - 120, 20);
+        } else {
+          g.fillStyle = "#14161A";
+          g.fillRect(16, 46, w - 78, 13);
+          g.fillRect(16, 78, w - 132, 13);
+        }
+        g.fillStyle = "rgba(20,22,26,.28)"; g.fillRect(16, h - 34, 52, 8);
+      });
+    }
+
+    var GX = 2.45, GY = 1.62;
+    var COLS = small ? 34 : 74, ROWS = 12;
+    S.COLS = COLS; S.GX = GX;
+    var geo = new T.PlaneGeometry(2.15, 1.34);
+    var pub = new T.InstancedMesh(geo, new T.MeshLambertMaterial({ map: card(false) }), COLS * ROWS);
+    var wit = new T.InstancedMesh(geo, new T.MeshLambertMaterial({ map: card(true) }), COLS * ROWS);
+    var m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
+    var v = new T.Vector3(), s = new T.Vector3(1, 1, 1), col = new T.Color();
+    var rnd = mulberry32(31);
+    var px = [], wx = [], np = 0, nw = 0;
+
+    for (var c = 0; c < COLS; c++) {
+      for (var r = 0; r < ROWS; r++) {
+        var x = (c - COLS / 2) * GX + (rnd() - 0.5) * 0.06;
+        var y = (r - (ROWS - 1) / 2) * GY + (rnd() - 0.5) * 0.04;
+        var open = rnd() < 0.14;      /* a few are already common knowledge */
+        v.set(x, y, (rnd() - 0.5) * 0.05);
+        e.set(0, (rnd() - 0.5) * 0.02, (rnd() - 0.5) * 0.012);
+        m4.compose(v, q.setFromEuler(e), s);
+        if (open) { pub.setMatrixAt(np, m4); pub.setColorAt(np, col.setHex(0xffffff)); px.push(x); np++; }
+        else { wit.setMatrixAt(nw, m4); wit.setColorAt(nw, col.setHex(0xffffff)); wx.push(x); nw++; }
+      }
+    }
+    pub.count = np; wit.count = nw;
+    pub.instanceMatrix.needsUpdate = true; wit.instanceMatrix.needsUpdate = true;
+    if (pub.instanceColor) pub.instanceColor.needsUpdate = true;
+    if (wit.instanceColor) wit.instanceColor.needsUpdate = true;
+    root.add(pub); root.add(wit);
+    S.pub = pub; S.wit = wit;
+    S.px = Float32Array.from(px); S.wx = Float32Array.from(wx);
+
+    /* the rails the cards are filed in */
+    var rails = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1),
+      new T.MeshLambertMaterial({ color: 0xC9C4B8 }), ROWS + 1);
+    for (var q2 = 0; q2 <= ROWS; q2++) {
+      v.set(0, (q2 - ROWS / 2) * GY - GY / 2 + 0.06, -0.18);
+      s.set(COLS * GX + 8, 0.035, 0.34);
+      m4.compose(v, q.setFromEuler(e.set(0, 0, 0)), s);
+      rails.setMatrixAt(q2, m4);
+    }
+    rails.instanceMatrix.needsUpdate = true;
+    root.add(rails);
+    s.set(1, 1, 1);
+
+    var back = new T.Mesh(new T.PlaneGeometry(COLS * GX + 44, ROWS * GY + 34),
+      new T.MeshLambertMaterial({ color: 0xDAD6CC }));
+    back.position.z = -1.2;
+    root.add(back);
+
+    /* tier plaques bolted to the wall, so the three tiers are labelled in the world */
+    function plaque(label, rule) {
+      return makeTexture(T, ctx.renderer, 1024, 168, function (g, w, h) {
+        g.fillStyle = "#E7E4DD"; g.fillRect(0, 0, w, h);
+        g.fillStyle = "#B82A14"; g.fillRect(0, 0, 12, h);
+        g.font = '500 46px "Martian Mono", ui-monospace, monospace';
+        g.fillStyle = "#B82A14"; g.fillText(label, 36, 64);
+        g.font = '400 25px "Martian Mono", ui-monospace, monospace';
+        g.fillStyle = "#5C574C"; g.fillText(rule, 36, 118);
+      });
+    }
+    [["ABSOLUTE", "nothing lifts it", 5.7], ["HARD", "lifted only in writing", 0.25],
+     ["OFF", "chosen against, and logged", -5.2]].forEach(function (P, idx) {
+      var m = new T.Mesh(new T.PlaneGeometry(7.6, 1.25),
+        new T.MeshBasicMaterial({ map: plaque(P[0], P[1]) }));
+      m.position.set(-COLS * GX / 2 + 10 + idx * (COLS * GX / 3.4), P[2], 0.3);
+      root.add(m);
+    });
+
+    root.add(new T.HemisphereLight(0xFFFFFF, 0xBDB8AC, 2.6));
+    var key = new T.DirectionalLight(0xFFFDF6, 1.0);
+    key.position.set(-8, 10, 14); root.add(key);
+    S.lamp = new T.PointLight(0xFFF2DC, 260, 46, 2);
+    S.lamp.position.set(0, 0, 5);
+    root.add(S.lamp);
+  },
+
+  camera: function (ctx) {
+    /* a close tracking shot along the wall. it still has perspective, so it cannot be
+       confused with act 08's flat orthographic truck. */
+    var t = ctx.t, c = ctx.camera, S = ctx.actState;
+    var span = S.COLS * S.GX;
+    var x = lerp(-span / 2 + 12, span / 2 - 12, t);
+    var z = t < 0.20 ? lerp(34, 21, ease(t / 0.20))
+          : t < 0.72 ? lerp(21, 17, ease((t - 0.20) / 0.52))
+          : lerp(17, 30, ease((t - 0.72) / 0.28));
+    var y = Math.sin(t * Math.PI) * 2.6 - 0.4;
+    c.position.set(x + ctx.pointer.x * 0.8, y + ctx.pointer.y * -0.5, z);
+    c.rotation.set(0, 0, 0);
+    c.lookAt(x + 1.1, y * 0.5, 0);       /* barely any yaw: it must read as a wall */
+  },
+
+  frame: function (ctx) {
+    var S = ctx.actState, t = ctx.t, col = S.__c || (S.__c = new ctx.THREE.Color());
+    var span = S.COLS * S.GX;
+    var head = lerp(-span / 2 + 10, span / 2 - 10, t);
+    S.lamp.position.x = head;
+
+    /* everything behind the reading head has been dealt with and closed */
+    for (var i = 0; i < S.wit.count; i++) {
+      var d = S.wx[i] < head - 1.2;
+      S.wit.setColorAt(i, col.setRGB(d ? 0.70 : 1, d ? 0.64 : 1, d ? 0.61 : 1));
+    }
+    if (S.wit.instanceColor) S.wit.instanceColor.needsUpdate = true;
+    /* the open cards stay bright: they are the ones you are allowed to read */
+    for (var j = 0; j < S.pub.count; j++) {
+      var near = Math.abs(S.px[j] - head) < 7;
+      S.pub.setColorAt(j, col.setRGB(1, near ? 1 : 0.94, near ? 0.97 : 0.88));
+    }
+    if (S.pub.instanceColor) S.pub.instanceColor.needsUpdate = true;
+  }
+};
 
 /* ============================================================================
  * 03 — THE ASSEMBLY FLOOR

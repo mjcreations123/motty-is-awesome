@@ -57,10 +57,31 @@ html.is-pale .act h2,html.is-pale .title{color:var(--pale-ink)}
 html.is-pale .say{color:#3F454D}
 html.is-pale .lede{color:#4A5058}
 
-/* ---------------- flat acts: ordinary page, no world at all ---------------- */
-.act--flat{pointer-events:auto}
-.act--flat .act__pin{position:static;height:auto;min-height:100svh;align-items:center;
-  padding-top:clamp(70px,12vh,150px);padding-bottom:clamp(70px,12vh,150px)}
+/* ---------------- ACT 02: the warm paper archive inverts the page with it ---------------- */
+html.is-paperworld body{background:#E7E4DD}
+html.is-paperworld .act--right .act__copy::before{
+  inset:-46% -70% -46% -56%;
+  background:radial-gradient(66% 60% at 60% 50%,rgba(231,228,221,1) 0%,rgba(231,228,221,.995) 52%,
+    rgba(231,228,221,.94) 72%,rgba(231,228,221,.6) 86%,rgba(231,228,221,0) 100%)}
+html.is-paperworld .act h2{color:#14161A}
+html.is-paperworld .say{color:#3A3730}
+html.is-paperworld .lede{color:#5C574C}
+html.is-paperworld .hud{color:#4A4438}
+/* the archive wall is busy and bright, so the telemetry gets a real plate to sit on */
+html.is-paperworld .hud > span:not(.rail){text-shadow:none;background:rgba(231,228,221,.86);
+  padding:4px 8px;margin:-4px -8px;border-radius:1px}
+html.is-paperworld .hud b,html.is-paperworld .hud-tl{color:#14161A}
+html.is-paperworld .hud i{color:#6E685C}
+html.is-paperworld .pip{background:rgba(20,22,26,.22)}
+html.is-paperworld .sub-rail i{background:rgba(20,22,26,.2)}
+html.is-paperworld .vignette,html.is-paperworld .scan{opacity:0}
+
+/* ---------------- flat acts: ordinary page, no world at all.
+   height comes from the content, never from a vh class, or the section leaves
+   screens of dead ground below the last line. ---------------- */
+.act--flat{pointer-events:auto;min-height:0}
+.act--flat .act__pin{position:static;height:auto;min-height:0;align-items:center;
+  padding-top:clamp(90px,15vh,190px);padding-bottom:clamp(110px,18vh,220px)}
 .act--flat .act__copy{width:100%;max-width:900px;margin:0 auto}
 .act--flat .act__copy::before{display:none}
 
