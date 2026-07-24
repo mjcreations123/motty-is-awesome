@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Familjen+Grotesk:wght@400..700&family=Spline+Sans+Mono:wght@400..600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=2">
+<link rel="stylesheet" href="css/site.css?v=3">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
@@ -20,15 +20,25 @@
 <div id="spot" aria-hidden="true"></div>
 
 <header class="top">
-  <span class="mark">MJ&#39;s Studio</span>
-  <span class="tag">Proof <b>001</b></span>
+  <a class="mark" href="/">MJ&#39;s Studio</a>
+  <nav class="nav" aria-label="Primary">
+    <a href="/" class="here" aria-current="page">Home</a>
+    <a href="/about">About</a>
+  </nav>
 </header>
 
 <main>
   <section class="hero" aria-label="motty is awesome">
-    <h1 class="title" id="title">motty is awesome</h1>
-    <p class="sub" data-r>A website that makes websites. He will not tell you what is inside it. He does not have to.</p>
-    <span class="cue" data-r><span class="beam" aria-hidden="true"></span>move your cursor</span>
+    <div class="stage">
+      <h1 class="title" id="title">motty is awesome</h1>
+      <p class="sub" data-r>A website that makes websites. He will not tell you what is inside it. He does not have to.</p>
+      <span class="cue" data-r><span class="beam" aria-hidden="true"></span>move your cursor</span>
+    </div>
+    <div class="hero-foot" data-r>
+      <div class="hf"><span class="k">The work</span><span class="v">Websites that could only be his.</span></div>
+      <div class="hf"><span class="k">The range</span><span class="v">Any register you can name.</span></div>
+      <div class="hf"><span class="k">The catch</span><span class="v">There isn&#39;t one. Just ask.</span></div>
+    </div>
   </section>
 
   <section class="sect claim wrap" aria-labelledby="claim">
@@ -45,6 +55,16 @@
       <span class="item">Loud<span class="dot" aria-hidden="true">&#47;</span></span>
       <span class="item">Editorial<span class="dot" aria-hidden="true">&#47;</span></span>
       <span class="item">Whatever you ask for<span class="dot" aria-hidden="true">&#47;</span></span>
+    </div>
+  </section>
+
+  <section class="sect steps-sect wrap" aria-labelledby="how">
+    <p class="kick" data-r>How it goes</p>
+    <h2 class="big" id="how" data-r>Three steps. <span class="hot">No catch.</span></h2>
+    <div class="steps">
+      <div class="step" data-r><span class="n">01</span><h3>You ask.</h3><p>One sentence about what you need is enough to start.</p></div>
+      <div class="step" data-r><span class="n">02</span><h3>He designs it.</h3><p>From your world, not a template. One real point of view, built at full strength.</p></div>
+      <div class="step" data-r><span class="n">03</span><h3>It looks like nothing else.</h3><p>And nothing like a machine made it. That is the whole promise.</p></div>
     </div>
   </section>
 
@@ -78,12 +98,12 @@
     </div>
     <div class="meta">
       <span class="tag">MJ&#39;s Studio</span>
-      <span class="tag">A demonstration, not a store</span>
+      <span class="tag">A calling card, not a store</span>
       <span class="tag">2026</span>
     </div>
   </footer>
 </main>
 
-<script src="js/site.js?v=2"></script>
+<script src="js/site.js?v=3"></script>
 </body>
 </html>

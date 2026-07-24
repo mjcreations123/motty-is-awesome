@@ -23,13 +23,17 @@ http
       res.writeHead(403);
       return res.end("forbidden");
     }
-    fs.readFile(file, (err, buf) => {
-      if (err) {
-        res.writeHead(404, { "content-type": "text/plain" });
-        return res.end("not found");
-      }
-      res.writeHead(200, { "content-type": TYPES[path.extname(file)] || "application/octet-stream" });
-      res.end(buf);
-    });
+    const serve = (f, allowHtml) => {
+      fs.readFile(f, (err, buf) => {
+        if (err) {
+          if (allowHtml && !path.extname(f)) return serve(f + ".html", false);
+          res.writeHead(404, { "content-type": "text/plain" });
+          return res.end("not found");
+        }
+        res.writeHead(200, { "content-type": TYPES[path.extname(f)] || "application/octet-stream" });
+        res.end(buf);
+      });
+    };
+    serve(file, true);
   })
   .listen(PORT, () => console.log("design-dna specimen on http://localhost:" + PORT));
