@@ -1102,11 +1102,14 @@ export const actRecord = { id: "record", accent: null, dom: true };
  * Camera: a lateral truck across a plan sheet. Scale: a city from altitude.
  * ========================================================================== */
 export const actLedger = {
-  id: "ledger", accent: "#B82A14", bg: 0xDDE0E4, ortho: true, restT: 0.55,
+  id: "ledger", accent: "#B82A14", bg: 0xDDE0E4, ortho: true, restT: 0.72,
   fog: function (T) { return new T.Fog(0xDDE0E4, 90, 340); },
 
   build: function (ctx) {
     var T = ctx.THREE, root = ctx.root, S = ctx.actState, small = ctx.small;
+    var m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
+    var v = new T.Vector3(), s = new T.Vector3(1, 1, 1), col = new T.Color();
+    var FLAT = new T.Quaternion().setFromEuler(new T.Euler(-Math.PI / 2, 0, 0));
 
     var sheet = makeTexture(T, ctx.renderer, 2048, 2048, function (g, w, h) {
       g.fillStyle = "#DDE0E4"; g.fillRect(0, 0, w, h);
@@ -1124,75 +1127,142 @@ export const actLedger = {
       g.font = '20px "Martian Mono", ui-monospace, monospace';
       g.fillText("SHEET 01 OF 01", 70, 140);
       g.fillText("NO TWO ALIKE", w - 340, 100);
-      /* north arrow and a scale bar, so it reads as a survey and not wallpaper */
-      g.beginPath(); g.moveTo(w - 160, h - 200); g.lineTo(w - 130, h - 120); g.lineTo(w - 190, h - 120);
-      g.closePath(); g.fillStyle = "#5A6068"; g.fill();
+      g.beginPath(); g.moveTo(w - 160, h - 200); g.lineTo(w - 130, h - 120);
+      g.lineTo(w - 190, h - 120); g.closePath(); g.fill();
       g.fillRect(80, h - 130, 300, 8);
-      for (var k2 = 0; k2 <= 6; k2++) g.fillRect(80 + k2 * 50, h - 148, 3, 26);
+      for (var k = 0; k <= 6; k++) g.fillRect(80 + k * 50, h - 148, 3, 26);
       g.font = '16px "Martian Mono", ui-monospace, monospace';
-      for (var b = 0; b < 40; b += 4) {
-        g.fillText(String(1000 + b), 60 + (b / 4) * 190, 190);
-      }
+      for (var b = 0; b < 40; b += 4) g.fillText(String(1000 + b), 60 + (b / 4) * 190, 190);
     });
-
     var ground = new T.Mesh(new T.PlaneGeometry(420, 420),
       new T.MeshBasicMaterial({ map: sheet }));
     ground.rotation.x = -Math.PI / 2;
     root.add(ground);
 
-    /* every unclaimed plot, as outlines, in one buffer */
+    /* plot outlines, one merged buffer */
     var N = small ? 520 : 1400;
-    var pts = [];
-    var rnd = mulberry32(19);
+    var pts = [], rnd = mulberry32(19);
     var cols = 50, rows = Math.ceil(N / 50);
-    for (var i = 0; i < N; i++) {
-      var cx = (i % cols - cols / 2) * 7.4 + (rnd() - 0.5) * 1.2;
-      var cz = (Math.floor(i / cols) - rows / 2) * 7.4 + (rnd() - 0.5) * 1.2;
+    var cxs = new Float32Array(N), czs = new Float32Array(N);
+    for (var i2 = 0; i2 < N; i2++) {
+      var cx = (i2 % cols - cols / 2) * 7.4 + (rnd() - 0.5) * 1.2;
+      var cz = (Math.floor(i2 / cols) - rows / 2) * 7.4 + (rnd() - 0.5) * 1.2;
+      cxs[i2] = cx; czs[i2] = cz;
       var w2 = 2.3, d2 = 1.6;
-      var a = [cx - w2, 0.02, cz - d2], b2 = [cx + w2, 0.02, cz - d2];
-      var c2 = [cx + w2, 0.02, cz + d2], d3 = [cx - w2, 0.02, cz + d2];
-      pts.push(a[0], a[1], a[2], b2[0], b2[1], b2[2]);
-      pts.push(b2[0], b2[1], b2[2], c2[0], c2[1], c2[2]);
-      pts.push(c2[0], c2[1], c2[2], d3[0], d3[1], d3[2]);
-      pts.push(d3[0], d3[1], d3[2], a[0], a[1], a[2]);
+      pts.push(cx - w2, 0.02, cz - d2, cx + w2, 0.02, cz - d2);
+      pts.push(cx + w2, 0.02, cz - d2, cx + w2, 0.02, cz + d2);
+      pts.push(cx + w2, 0.02, cz + d2, cx - w2, 0.02, cz + d2);
+      pts.push(cx - w2, 0.02, cz + d2, cx - w2, 0.02, cz - d2);
     }
     var plotGeo = new T.BufferGeometry();
     plotGeo.setAttribute("position", new T.Float32BufferAttribute(pts, 3));
-    var plots = new T.LineSegments(plotGeo,
-      new T.LineBasicMaterial({ color: 0x5A6068, transparent: true, opacity: 0.5 }));
-    root.add(plots);
-    S.plots = plots;
+    root.add(new T.LineSegments(plotGeo,
+      new T.LineBasicMaterial({ color: 0x5A6068, transparent: true, opacity: 0.5 })));
 
-    /* the one plot that is claimed, and the only object with height in the world */
+    /* SPENT GROUND. every plot carries a hatch tile. behind the survey head the field is
+       visibly used up; ahead of it the ground is still clean. this is the act's argument:
+       a look that has been taken is not available any more. */
+    var hatchTex = makeTexture(T, ctx.renderer, 64, 64, function (g, w, h) {
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = "#8A9099"; g.lineWidth = 3;
+      for (var i = -8; i < 8; i++) {
+        g.beginPath(); g.moveTo(i * 8, 0); g.lineTo(i * 8 + h, h); g.stroke();
+      }
+    });
+    var hatch = new T.InstancedMesh(new T.PlaneGeometry(4.6, 3.2),
+      new T.MeshBasicMaterial({ map: hatchTex, transparent: true, opacity: 0 }), N);
+    for (var i3 = 0; i3 < N; i3++) {
+      v.set(cxs[i3], 0.03, czs[i3]);
+      m4.compose(v, FLAT, s);
+      hatch.setMatrixAt(i3, m4);
+      hatch.setColorAt(i3, col.setHex(0xB9BEC6));
+    }
+    hatch.instanceMatrix.needsUpdate = true;
+    if (hatch.instanceColor) hatch.instanceColor.needsUpdate = true;
+    root.add(hatch);
+    S.hatch = hatch; S.cxs = cxs; S.N = N; S.lastCol = -99;
+
+    /* survey crosshairs, deliberately flat: only one object here is allowed height */
+    var crossTex = makeTexture(T, ctx.renderer, 64, 64, function (g, w, h) {
+      g.clearRect(0, 0, w, h);
+      g.fillStyle = "#7A828C";
+      g.fillRect(30, 8, 4, 48); g.fillRect(8, 30, 48, 4);
+      g.strokeStyle = "#7A828C"; g.lineWidth = 2;
+      g.beginPath(); g.arc(32, 32, 14, 0, 7); g.stroke();
+    });
+    var CN = small ? 120 : 288;
+    var cross = new T.InstancedMesh(new T.PlaneGeometry(1.4, 1.4),
+      new T.MeshBasicMaterial({ map: crossTex, transparent: true, opacity: 0.5 }), CN);
+    for (var c2 = 0; c2 < CN; c2++) {
+      var gx = (c2 % 24 - 12) * 14.8, gz = (Math.floor(c2 / 24) - 6) * 14.8;
+      v.set(gx, 0.025, gz);
+      m4.compose(v, FLAT, s);
+      cross.setMatrixAt(c2, m4);
+    }
+    cross.instanceMatrix.needsUpdate = true;
+    root.add(cross);
+
+    /* THE CLAIMED PLOT. eighteen plates lie flat and closed at the start, so beat one is
+       literally true: nothing on this sheet has height. they extrude into the tower while
+       the camera closes on them, so the one built thing is built in front of you. */
+    var plates = new T.InstancedMesh(new T.BoxGeometry(7.7, 0.14, 5.5),
+      new T.MeshLambertMaterial({ color: 0x2A2E35 }), 18);
+    root.add(plates);
+    S.plates = plates;
+    S.pm = new T.Matrix4(); S.pv = new T.Vector3(); S.pq = new T.Quaternion();
+    S.ps = new T.Vector3(1, 1, 1);
+
     var tower = new T.Mesh(new T.BoxGeometry(7.4, 17, 5.2),
       new T.MeshLambertMaterial({ color: 0x14171C }));
-    tower.position.set(0, 8.5, 0);
-    root.add(tower);
+    tower.position.set(0, 0, 0); tower.scale.y = 0.004;
+    root.add(tower); S.tower = tower;
+
     var cap = new T.Mesh(new T.PlaneGeometry(7.4, 5.2),
       new T.MeshBasicMaterial({ map: directedPageTexture(T, ctx.renderer, "#B82A14") }));
-    cap.rotation.x = -Math.PI / 2; cap.position.set(0, 17.03, 0);
-    root.add(cap);
+    cap.rotation.x = -Math.PI / 2; cap.position.set(0, 0.06, 0);
+    root.add(cap); S.cap = cap;
+
     var mark = new T.Mesh(new T.PlaneGeometry(8.4, 0.9),
       new T.MeshBasicMaterial({ color: 0xB82A14 }));
     mark.rotation.x = -Math.PI / 2; mark.position.set(0, 0.06, 4.2);
     root.add(mark);
 
+    /* registration acquired on arrival, released once the claim lands */
+    var regTex = makeTexture(T, ctx.renderer, 512, 384, function (g, w, h) {
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = "#B82A14"; g.lineWidth = 6;
+      var L = 74;
+      [[18, 18, 1, 1], [w - 18, 18, -1, 1], [18, h - 18, 1, -1], [w - 18, h - 18, -1, -1]]
+        .forEach(function (P) {
+          g.beginPath();
+          g.moveTo(P[0] + P[2] * L, P[1]); g.lineTo(P[0], P[1]);
+          g.lineTo(P[0], P[1] + P[3] * L); g.stroke();
+        });
+      g.lineWidth = 3;
+      g.beginPath(); g.arc(w / 2, h / 2, 54, 0, 7); g.stroke();
+      g.font = '500 22px "Martian Mono", ui-monospace, monospace';
+      g.fillStyle = "#B82A14";
+      g.fillText("PLOT CLAIMED", w / 2 - 82, h - 44);
+    });
+    var reg = new T.Mesh(new T.PlaneGeometry(13, 9.5),
+      new T.MeshBasicMaterial({ map: regTex, transparent: true, opacity: 0 }));
+    reg.rotation.x = -Math.PI / 2; reg.position.set(0, 0.07, 0);
+    root.add(reg); S.reg = reg;
+
     root.add(new T.HemisphereLight(0xFFFFFF, 0xBFC5CC, 2.2));
-    var dl = new T.DirectionalLight(0xFFFFFF, 0.8); dl.position.set(-30, 40, 20); root.add(dl);
+    var dl = new T.DirectionalLight(0xFFFFFF, 0.9); dl.position.set(-30, 40, 20); root.add(dl);
   },
 
   camera: function (ctx) {
-    /* An orthographic truck across the sheet. No perspective, no vanishing point, so the
-       only cues are lateral travel and zoom. Staged: read the whole field wide, close on
-       the ruled rows, arrive at the one claimed plot, then pull back off it and end
-       looking at unclaimed ground, which is the point. */
+    /* orthographic. no perspective, no vanishing point, so the only cues are lateral
+       travel and zoom. it ends looking at unclaimed ground, which is the point. */
     var KEYS = [
-      { t: 0.00, x: -190, zoom: 0.34 },
-      { t: 0.22, x: -96, zoom: 0.52 },
-      { t: 0.46, x: -28, zoom: 0.86 },
-      { t: 0.68, x: 2, zoom: 1.25 },
-      { t: 0.86, x: 40, zoom: 0.92 },
-      { t: 1.00, x: 118, zoom: 0.58 }
+      { t: 0.00, x: -180, zoom: 0.32 },
+      { t: 0.24, x: -86, zoom: 0.50 },
+      { t: 0.48, x: -4, zoom: 0.88 },
+      { t: 0.70, x: 34, zoom: 1.30 },
+      { t: 0.88, x: 86, zoom: 0.90 },
+      { t: 1.00, x: 168, zoom: 0.55 }
     ];
     var t = ctx.t, i = 0;
     while (i < KEYS.length - 2 && t > KEYS[i + 1].t) i++;
@@ -1203,6 +1273,40 @@ export const actLedger = {
     c.position.set(x, 90, 120);
     c.lookAt(x, 0, 0);
     if (Math.abs(c.zoom - zoom) > 0.0005) { c.zoom = zoom; c.updateProjectionMatrix(); }
+    ctx.actState.headX = x;
+  },
+
+  frame: function (ctx) {
+    var S = ctx.actState, t = ctx.t, col = S.__c || (S.__c = new ctx.THREE.Color());
+    var head = S.headX != null ? S.headX : -190;
+
+    /* the ground the survey has already passed is spent, and cannot be built on again */
+    S.hatch.material.opacity = 0.55;
+    var colIdx = Math.floor(((head + 190) / 380) * 50);
+    if (colIdx !== S.lastCol) {
+      S.lastCol = colIdx;
+      for (var i = 0; i < S.N; i++) {
+        /* clean ground sits near paper value so it reads as blank and available;
+           spent ground is unmistakably hatched out. the band between them is the act. */
+        var spent = S.cxs[i] < head - 4;
+        S.hatch.setColorAt(i, col.setHex(spent ? 0x7D7365 : 0xDCDFE3));
+      }
+      if (S.hatch.instanceColor) S.hatch.instanceColor.needsUpdate = true;
+    }
+
+    /* the one claimed plot builds itself: eighteen plates rise out of a closed stack */
+    var k = ease(clamp01((t - 0.42) / 0.26));
+    for (var p = 0; p < 18; p++) {
+      S.pv.set(0, lerp(0.18 + p * 0.02, 0.55 + p * 0.93, k), 0);
+      S.pm.compose(S.pv, S.pq, S.ps);
+      S.plates.setMatrixAt(p, S.pm);
+    }
+    S.plates.instanceMatrix.needsUpdate = true;
+
+    S.tower.scale.y = Math.max(0.004, k);
+    S.tower.position.y = 8.5 * k;
+    S.cap.position.y = 17 * k + 0.06;
+    S.reg.material.opacity = clamp01((t - 0.38) / 0.14) * (1 - clamp01((t - 0.92) / 0.08));
   }
 };
 
