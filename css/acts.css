@@ -223,6 +223,10 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
   html.is-pale .act--right .act__copy::before{
     background:radial-gradient(78% 62% at 50% 50%,rgba(221,224,228,.99) 0%,rgba(221,224,228,.97) 52%,
       rgba(221,224,228,.86) 74%,rgba(221,224,228,0) 100%)}
+  html.is-paperworld .act--right .act__copy::before{
+    inset:-24% -32% -24% -32%;
+    background:radial-gradient(78% 62% at 50% 50%,rgba(231,228,221,1) 0%,rgba(231,228,221,.99) 52%,
+      rgba(231,228,221,.9) 74%,rgba(231,228,221,0) 100%)}
   .rail{display:none}
   .hud-bc{display:none}
   .hud{font-size:9.5px;letter-spacing:.08em}
