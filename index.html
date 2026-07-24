@@ -14,8 +14,8 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=23">
-<link rel="stylesheet" href="css/acts.css?v=23">
+<link rel="stylesheet" href="css/site.css?v=26">
+<link rel="stylesheet" href="css/acts.css?v=26">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
@@ -60,7 +60,7 @@
   </section>
 
   <!-- ============ 02 THE REGISTRY (flat) ============ -->
-  <section class="act h300 act--flat act--paper" id="a1" data-name="the registry"
+  <section class="act h240 act--flat act--paper" id="a1" data-name="the registry"
            data-accent="#B82A14" data-dom data-paper>
     <div class="act__pin">
       <div class="act__copy sheet">
@@ -68,36 +68,51 @@
         <h2>It keeps a written list of everything that gives you away.</h2>
         <p class="say">Anything on the list is refused before it is drawn. Three tiers: ABSOLUTE cannot be switched off by anyone, HARD needs a written reason, OFF is a choice and the choice is logged. A handful of entries are printed below because they are already common knowledge. The rest is not published. It is enforced.</p>
 
-        <ol class="registry" id="registry-rows">
-          <li style="--i:0"><span class="n">001</span><span class="entry">gradient headline text</span><span class="tier">absolute</span></li>
-          <li style="--i:1"><span class="n">002</span><span class="entry">a hero, three cards, testimonials, a call to action</span><span class="tier">absolute</span></li>
-          <li style="--i:2"><span class="n">003</span><span class="entry">glassmorphism</span><span class="tier">hard</span></li>
-          <li style="--i:3"><span class="n">004</span><span class="entry">a floating low poly blob</span><span class="tier">hard</span></li>
-          <li style="--i:4"><span class="n">005</span><span class="entry">animated number count ups</span><span class="tier">absolute</span></li>
-          <li style="--i:5"><span class="n">006</span><span class="entry">hand drawn browser chrome</span><span class="tier">absolute</span></li>
-          <li style="--i:6"><span class="n">007</span><span class="bar" style="--w:15" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:7"><span class="n">008</span><span class="bar" style="--w:9" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:8"><span class="n">009</span><span class="bar" style="--w:22" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:9"><span class="n">010</span><span class="bar" style="--w:12" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:10"><span class="n">011</span><span class="bar" style="--w:18" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:11"><span class="n">012</span><span class="bar" style="--w:7" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:12"><span class="n">013</span><span class="bar" style="--w:20" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:13"><span class="n">014</span><span class="bar" style="--w:11" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:14"><span class="n">015</span><span class="bar" style="--w:16" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:15"><span class="n">016</span><span class="bar" style="--w:24" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:16"><span class="n">017</span><span class="bar" style="--w:10" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:17"><span class="n">018</span><span class="bar" style="--w:19" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:18"><span class="n">019</span><span class="bar" style="--w:13" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:19"><span class="n">020</span><span class="bar" style="--w:21" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:20"><span class="n">021</span><span class="bar" style="--w:17" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:21"><span class="n">022</span><span class="bar" style="--w:8" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:22"><span class="n">023</span><span class="bar" style="--w:23" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:23"><span class="n">024</span><span class="bar" style="--w:14" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:24"><span class="n">025</span><span class="bar" style="--w:20" aria-label="withheld"></span><span class="tier">hard</span></li>
-          <li style="--i:25"><span class="n">026</span><span class="bar" style="--w:12" aria-label="withheld"></span><span class="tier">off</span></li>
-          <li style="--i:26"><span class="n">027</span><span class="bar" style="--w:26" aria-label="withheld"></span><span class="tier">absolute</span></li>
-          <li style="--i:27"><span class="n">028</span><span class="bar" style="--w:9" aria-label="withheld"></span><span class="tier">hard</span></li>
-        </ol>
+        <div class="registry-wrap" id="registry-rows">
+        <section class="tier-block tier--absolute">
+          <h3 class="tier-head"><b>absolute</b> <span>nothing lifts it, including the person paying</span></h3>
+          <ol class="registry">
+            <li style="--i:0"><span class="entry">gradient headline text</span><span class="tier">published</span></li>
+            <li style="--i:1"><span class="entry">a hero, three cards, testimonials, a call to action</span><span class="tier">published</span></li>
+            <li style="--i:2"><span class="entry">animated number count ups</span><span class="tier">published</span></li>
+            <li style="--i:3"><span class="entry">hand drawn browser chrome</span><span class="tier">published</span></li>
+            <li style="--i:4"><span class="bar" style="--w:15" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:5"><span class="bar" style="--w:9" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:6"><span class="bar" style="--w:22" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:7"><span class="bar" style="--w:12" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:8"><span class="bar" style="--w:18" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:9"><span class="bar" style="--w:7" aria-label="withheld"></span><span class="tier">withheld</span></li>
+          </ol>
+        </section>
+        <section class="tier-block tier--hard">
+          <h3 class="tier-head"><b>hard</b> <span>lifted only by a written reason, and the reason is kept</span></h3>
+          <ol class="registry">
+            <li style="--i:10"><span class="entry">glassmorphism</span><span class="tier">published</span></li>
+            <li style="--i:11"><span class="entry">a floating low poly blob</span><span class="tier">published</span></li>
+            <li style="--i:12"><span class="bar" style="--w:20" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:13"><span class="bar" style="--w:11" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:14"><span class="bar" style="--w:16" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:15"><span class="bar" style="--w:24" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:16"><span class="bar" style="--w:10" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:17"><span class="bar" style="--w:19" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:18"><span class="bar" style="--w:13" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:19"><span class="bar" style="--w:21" aria-label="withheld"></span><span class="tier">withheld</span></li>
+          </ol>
+        </section>
+        <section class="tier-block tier--off">
+          <h3 class="tier-head"><b>off</b> <span>a default that may be chosen against, and the choice is logged</span></h3>
+          <ol class="registry">
+            <li style="--i:20"><span class="bar" style="--w:17" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:21"><span class="bar" style="--w:8" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:22"><span class="bar" style="--w:23" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:23"><span class="bar" style="--w:14" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:24"><span class="bar" style="--w:20" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:25"><span class="bar" style="--w:12" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:26"><span class="bar" style="--w:26" aria-label="withheld"></span><span class="tier">withheld</span></li>
+            <li style="--i:27"><span class="bar" style="--w:9" aria-label="withheld"></span><span class="tier">withheld</span></li>
+          </ol>
+        </section>
+        </div>
         <p class="stamp">internal <i>/</i> not for publication</p>
       </div>
     </div>
@@ -198,7 +213,7 @@
   </section>
 
   <!-- ============ 07 THE RECORD (flat) ============ -->
-  <section class="act h300 act--flat" id="a6" data-name="the record" data-accent="#E9EBEF" data-dom>
+  <section class="act h240 act--flat" id="a6" data-name="the record" data-accent="#E9EBEF" data-dom>
     <div class="act__pin">
       <div class="act__copy record">
         <p class="lede">07 <i>/</i> the record</p>
@@ -302,6 +317,6 @@
   }
 }
 </script>
-<script src="js/site.js?v=23"></script>
+<script src="js/site.js?v=26"></script>
 </body>
 </html>

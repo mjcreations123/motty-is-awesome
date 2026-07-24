@@ -492,35 +492,58 @@ export const actRun = {
  * Camera: dead still, only the lens breathes. Scale: arm's length. Accent: phosphor.
  * ========================================================================== */
 export const actInstrument = {
-  id: "instrument", accent: "#7BE38A", bg: 0x08090B, fov: 34, restT: 0.6,
+  id: "instrument", accent: "#7BE38A", bg: 0x08090B, fov: 34, restT: 0.8,
   fog: function () { return null; },
 
   build: function (ctx) {
     var T = ctx.THREE, root = ctx.root, S = ctx.actState, small = ctx.small;
-    var FIELDS = [
-      ["TYPE SCALE", "MOTION", "CONTRAST", "GRID"],
-      ["GROUND", "ACCENT", "RHYTHM", "WEIGHT"],
-      ["TEXTURE", "DEPTH", "SPACING", "VOICE"]
-    ];
-    var rings = [];
+    var GREEN = 0x7BE38A, DIM = 0xD6DEE6;
 
-    /* four instanced batches per ring, so a 144 row instrument costs 12 draw calls */
+    /* the rig carries the whole instrument, so the CAMERA can stay welded in place while
+       the object still travels: on this act the journey belongs to the thing being looked at */
+    var rig = new T.Group();
+    rig.position.set(0, 0, -10.5);
+    root.add(rig);
+    S.rig = rig;
+
+    /* two texture sets per field: an unprinted one with the value outlined, and a printed
+       one in phosphor. a ring does not merely brighten when it decides, it reprints. */
+    function fieldTex(label, printed) {
+      return makeTexture(T, ctx.renderer, 512, 72, function (g, w, h) {
+        g.font = '500 26px "Martian Mono", ui-monospace, monospace';
+        g.textBaseline = "middle";
+        g.fillStyle = printed ? "#7BE38A" : "#D6DEE6";
+        g.fillText(label, 10, h / 2);
+        if (printed) {
+          g.fillRect(w - 96, 22, 84, 28);
+          g.fillRect(10, h / 2 + 16, g.measureText(label).width, 2);
+        } else {
+          g.strokeStyle = "#D6DEE6"; g.lineWidth = 3;
+          g.strokeRect(w - 96, 22, 84, 28);
+        }
+      });
+    }
+
+    var FIELDS = [
+      ["GROUND", "FACE", "BONES"],
+      ["MOTION", "SIGNATURE", "VOICE"],
+      ["RHYTHM", "WEIGHT", "DEPTH"]
+    ];
+    var rings = [], m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
+    var v = new T.Vector3(), s = new T.Vector3(1, 1, 1), col = new T.Color();
+
     function ring(radius, count, tiltX, tiltY, w, h, labels) {
       var g = new T.Group();
-      var per = Math.ceil(count / labels.length);
+      var per = Math.ceil(count / labels.length), idx = 0;
       var batches = [];
-      var m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
-      var v = new T.Vector3(), s = new T.Vector3(1, 1, 1);
-      var idx = 0;
       labels.forEach(function (label) {
         var n = Math.min(per, count - idx);
         if (n <= 0) return;
+        var dimMap = fieldTex(label, false), litMap = fieldTex(label, true);
         var im = new T.InstancedMesh(
           new T.PlaneGeometry(w, h),
-          new T.MeshBasicMaterial({
-            map: rowTexture(T, ctx.renderer, label, "#D6DEE6"),
-            transparent: true, opacity: 0.26, side: T.DoubleSide, depthWrite: false
-          }), n);
+          new T.MeshBasicMaterial({ map: dimMap, transparent: true, opacity: 0.26,
+            side: T.DoubleSide, depthWrite: false }), n);
         for (var k = 0; k < n; k++, idx++) {
           var a = (idx / count) * TAU;
           v.set(Math.cos(a) * radius, Math.sin(a) * radius, 0);
@@ -529,91 +552,257 @@ export const actInstrument = {
           im.setMatrixAt(k, m4);
         }
         im.instanceMatrix.needsUpdate = true;
+        im.userData = { dim: dimMap, lit: litMap };
         g.add(im); batches.push(im);
       });
 
-      var pts = [];
-      for (var i = 0; i <= 96; i++) {
-        var a2 = (i / 96) * TAU;
-        pts.push(new T.Vector3(Math.cos(a2) * radius, Math.sin(a2) * radius, 0));
+      /* a graduated bezel rather than a plain hairline: it makes rotation readable */
+      var pts = [], i, a2;
+      for (i = 0; i < 128; i++) {
+        a2 = (i / 128) * TAU;
+        var a3 = ((i + 1) / 128) * TAU;
+        pts.push(Math.cos(a2) * radius, Math.sin(a2) * radius, 0,
+                 Math.cos(a3) * radius, Math.sin(a3) * radius, 0);
       }
-      var loop = new T.Line(new T.BufferGeometry().setFromPoints(pts),
-        new T.LineBasicMaterial({ color: 0xE9EBEF, transparent: true, opacity: 0.28 }));
-      g.add(loop);
-      g.userData = { batches: batches, loop: loop };
+      for (i = 0; i < 36; i++) {
+        a2 = (i / 36) * TAU;
+        var len = (i % 9 === 0) ? 0.28 : 0.12;
+        pts.push(Math.cos(a2) * radius, Math.sin(a2) * radius, 0,
+                 Math.cos(a2) * (radius - len), Math.sin(a2) * (radius - len), 0);
+      }
+      for (i = 0; i <= 16; i++) {
+        a2 = (i / 16) * (40 * Math.PI / 180) - 0.35;
+        var a4 = ((i + 1) / 16) * (40 * Math.PI / 180) - 0.35;
+        pts.push(Math.cos(a2) * (radius + 0.34), Math.sin(a2) * (radius + 0.34), 0,
+                 Math.cos(a4) * (radius + 0.34), Math.sin(a4) * (radius + 0.34), 0);
+      }
+      var bg = new T.BufferGeometry();
+      bg.setAttribute("position", new T.Float32BufferAttribute(pts, 3));
+      var bezel = new T.LineSegments(bg,
+        new T.LineBasicMaterial({ color: 0xE9EBEF, transparent: true, opacity: 0.2 }));
+      g.add(bezel);
+
+      g.userData = { batches: batches, bezel: bezel, tiltX: tiltX, tiltY: tiltY };
       g.rotation.x = tiltX; g.rotation.y = tiltY;
-      root.add(g); rings.push(g);
+      rig.add(g); rings.push(g);
       return g;
     }
 
-    ring(5.0, small ? 40 : 64, 0, 0, 0.95, 0.24, FIELDS[0]);
-    ring(3.6, small ? 30 : 48, 62 * Math.PI / 180, 0, 0.8, 0.2, FIELDS[1]);
-    ring(2.4, small ? 20 : 32, -38 * Math.PI / 180, 0.4, 0.66, 0.17, FIELDS[2]);
-
-    /* six cubes carry the mark that means refused */
-    var cubes = new T.InstancedMesh(new T.BoxGeometry(0.16, 0.16, 0.16),
-      new T.MeshBasicMaterial({ color: 0xFF3B21 }), 6);
-    var m4 = new T.Matrix4(), q2 = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(1, 1, 1);
-    for (var i = 0; i < 6; i++) {
-      var a = (i / 6) * TAU;
-      v.set(Math.cos(a) * 2.4, Math.sin(a) * 2.4, 0);
-      m4.compose(v, q2, s); cubes.setMatrixAt(i, m4);
-    }
-    cubes.instanceMatrix.needsUpdate = true;
-    rings[2].add(cubes);
-
-    /* the rig carries the whole instrument, so the CAMERA can stay welded in place while
-       the object still travels: the journey belongs to the thing being looked at */
-    var rig = new T.Group();
-    rig.position.set(0, 0, -10.5);
-    rings.forEach(function (r) { rig.add(r); });   /* add() reparents off root */
-    root.add(rig);
-    S.rig = rig;
-
+    ring(5.0, small ? 56 : 96, 0, 0, 0.95, 0.24, FIELDS[0]);
+    ring(3.6, small ? 40 : 72, 62 * Math.PI / 180, 0, 0.8, 0.2, FIELDS[1]);
+    ring(2.4, small ? 28 : 48, -38 * Math.PI / 180, 0.4, 0.66, 0.17, FIELDS[2]);
     S.rings = rings;
+
+    /* the housing. without it the void has no scale and no motion is legible at all. */
+    var cage = [];
+    function circle(n, r, fn) {
+      for (var i = 0; i < n; i++) {
+        var a = (i / n) * TAU, b = ((i + 1) / n) * TAU;
+        var p1 = fn(a, r), p2 = fn(b, r);
+        cage.push(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
+      }
+    }
+    circle(64, 6.4, function (a, r) { return [Math.cos(a) * r, Math.sin(a) * r, 0]; });
+    circle(64, 6.4, function (a, r) { return [Math.cos(a) * r, 0, Math.sin(a) * r]; });
+    circle(64, 6.4, function (a, r) { return [0, Math.cos(a) * r, Math.sin(a) * r]; });
+    cage.push(0, -6.4, 0, 0, 6.4, 0);
+    for (var gi = 0; gi < 7; gi++) {
+      var gz = -6.6 + gi * 2.2;
+      (function (zz) {
+        circle(48, 6.4, function (a, r) { return [Math.cos(a) * r, Math.sin(a) * r, zz]; });
+      })(gz);
+    }
+    var cageGeo = new T.BufferGeometry();
+    cageGeo.setAttribute("position", new T.Float32BufferAttribute(cage, 3));
+    var cageMesh = new T.LineSegments(cageGeo,
+      new T.LineBasicMaterial({ color: 0x2E353D, transparent: true, opacity: 0.5 }));
+    rig.add(cageMesh); S.cage = cageMesh;
+
+    var struts = new T.InstancedMesh(new T.BoxGeometry(0.035, 0.035, 13.2),
+      new T.MeshBasicMaterial({ color: 0x252B32 }), 8);
+    for (var si = 0; si < 8; si++) {
+      var sa = (si / 8) * TAU;
+      v.set(Math.cos(sa) * 6.4, Math.sin(sa) * 6.4, 0);
+      m4.compose(v, q.setFromEuler(e.set(0, 0, 0)), s);
+      struts.setMatrixAt(si, m4);
+    }
+    struts.instanceMatrix.needsUpdate = true;
+    rig.add(struts);
+
+    /* eighteen sight plates on the polar axis: a card index that seats one plate at a
+       time as you scroll, and snaps parallel at the lock */
+    var plates = new T.InstancedMesh(new T.PlaneGeometry(0.9, 0.05),
+      new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: T.DoubleSide }), 18);
+    for (var pi = 0; pi < 18; pi++) plates.setColorAt(pi, col.setHex(0x3A424A));
+    if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
+    rig.add(plates); S.plates = plates;
+    S.pm = new T.Matrix4(); S.pq = new T.Quaternion(); S.pe = new T.Euler();
+    S.pv = new T.Vector3(); S.ps = new T.Vector3();
+
+    /* three tier collars under the spindle: absolute, hard, off */
+    var collars = new T.InstancedMesh(new T.BoxGeometry(0.06, 0.06, 1),
+      new T.MeshBasicMaterial({ color: 0xffffff }), 96);
+    var ci = 0;
+    [1.15, 1.55, 1.95].forEach(function (rad) {
+      for (var n = 0; n < 32; n++) {
+        var a = (n / 32) * TAU;
+        v.set(Math.cos(a) * rad, -2.1, Math.sin(a) * rad);
+        e.set(0, -a, 0);
+        m4.compose(v, q.setFromEuler(e), s);
+        collars.setMatrixAt(ci, m4);
+        collars.setColorAt(ci, col.setHex(0x9AA6B2));
+        ci++;
+      }
+    });
+    collars.instanceMatrix.needsUpdate = true;
+    if (collars.instanceColor) collars.instanceColor.needsUpdate = true;
+    rig.add(collars); S.collars = collars;
+
+    /* refusal marks, tethered, and they cool once the instrument takes over */
+    var cubes = new T.InstancedMesh(new T.BoxGeometry(0.16, 0.16, 0.16),
+      new T.MeshBasicMaterial({ color: 0xffffff }), 6);
+    for (var qi = 0; qi < 6; qi++) cubes.setColorAt(qi, col.setHex(0xFF3B21));
+    if (cubes.instanceColor) cubes.instanceColor.needsUpdate = true;
+    rings[2].add(cubes); S.cubes = cubes;
+    S.cm = new T.Matrix4(); S.cq = new T.Quaternion(); S.ce = new T.Euler();
+    S.cv = new T.Vector3(); S.cs = new T.Vector3(1, 1, 1);
+
+    var spokes = [];
+    for (var ki = 0; ki < 6; ki++) {
+      var ka = (ki / 6) * TAU;
+      spokes.push(Math.cos(ka) * 2.4, Math.sin(ka) * 2.4, 0,
+                  Math.cos(ka) * 2.95, Math.sin(ka) * 2.95, 0);
+    }
+    var spGeo = new T.BufferGeometry();
+    spGeo.setAttribute("position", new T.Float32BufferAttribute(spokes, 3));
+    rings[2].add(new T.LineSegments(spGeo,
+      new T.LineBasicMaterial({ color: 0xFF3B21, transparent: true, opacity: 0.35 })));
+
+    /* phosphor persistence, so the outer ring smears behind itself while it turns */
+    var trail = new Float32Array(240 * 3), rnd = mulberry32(23);
+    for (var ti = 0; ti < 240; ti++) {
+      var ta = (ti / 240) * TAU;
+      trail[ti * 3] = Math.cos(ta) * (5.02 + (rnd() - 0.5) * 0.12);
+      trail[ti * 3 + 1] = Math.sin(ta) * (5.02 + (rnd() - 0.5) * 0.12);
+      trail[ti * 3 + 2] = -0.05;
+    }
+    var trGeo = new T.BufferGeometry();
+    trGeo.setAttribute("position", new T.BufferAttribute(trail, 3));
+    var trailPts = new T.Points(trGeo, new T.PointsMaterial({
+      size: 0.045, sizeAttenuation: true, color: GREEN, transparent: true,
+      opacity: 0.1, blending: T.AdditiveBlending, depthWrite: false
+    }));
+    rings[0].add(trailPts); S.trail = trailPts;
+
+    /* the index needle: the only thing still moving after the lock */
+    var needle = new T.Line(
+      new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, 0), new T.Vector3(5.4, 0, 0)]),
+      new T.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.7 }));
+    rig.add(needle); S.needle = needle;
+
+    /* the chord that snaps across the assembled dial at the lock */
+    var chord = new T.Line(
+      new T.BufferGeometry().setFromPoints([new T.Vector3(-5.4, 0, 0), new T.Vector3(5.4, 0, 0)]),
+      new T.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0 }));
+    rig.add(chord); S.chord = chord;
+
     root.add(new T.AmbientLight(0xffffff, 1));
   },
 
   camera: function (ctx) {
-    var c = ctx.camera;
-    /* never moves. not once, on any axis, for the whole act. the lens scores the first
-       three beats and then locks: a stopped machine under a still lens is the point. */
+    var c = ctx.camera, t = ctx.t;
+    /* never moves. not once, on any axis, for the whole act. only the lens is scored,
+       and after the lock even that stops. a stopped machine under a still lens. */
     c.position.set(3.6, 0, 20);
     c.rotation.set(0, 0, 0);
-    var t = ctx.t;
-    var fov = t < 0.28 ? lerp(34, 32, ease(t / 0.28))
-            : t < 0.62 ? lerp(32, 29.5, ease((t - 0.28) / 0.34))
-            : t < 0.76 ? lerp(29.5, 31, ease((t - 0.62) / 0.14))
-            : 31;
+    var fov = t < 0.18 ? lerp(34, 31, ease(t / 0.18))
+            : t < 0.42 ? lerp(31, 29.5, ease((t - 0.18) / 0.24))
+            : t < 0.66 ? 29.5
+            : t < 0.86 ? lerp(29.5, 46, ease((t - 0.66) / 0.20))
+            : lerp(46, 42, ease((t - 0.86) / 0.14));
     if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
   },
 
   frame: function (ctx) {
-    var S = ctx.actState, t = ctx.t;
+    var S = ctx.actState, t = ctx.t, T = ctx.THREE;
+    var col = S.__c || (S.__c = new T.Color());
 
-    /* the instrument comes to the viewer, then settles and locks */
-    var rz = t < 0.30 ? lerp(-10.5, -2.0, ease(t / 0.30))
-           : t < 0.62 ? lerp(-2.0, 2.6, ease((t - 0.30) / 0.32))
-           : t < 0.78 ? lerp(2.6, 4.4, ease((t - 0.62) / 0.16))
-           : 4.4;
-    S.rig.position.z = rz;
-    S.rig.rotation.x = lerp(0.34, 0.02, ease(clamp01(t / 0.62)));
-    S.rig.position.y = lerp(-1.6, 0, ease(clamp01(t / 0.5)));
-    /* spin is driven by scroll, not the clock, so scrolling back unwinds it exactly */
-    S.rings[0].rotation.z = t * 2.1;
-    S.rings[1].rotation.z = -t * 2.8;
-    S.rings[2].rotation.z = t * 3.6;
-    /* three sub beats: each ring in turn hard cuts from outline to solid phosphor */
-    var active = t < 0.34 ? 0 : t < 0.67 ? 1 : 2;
+    /* the instrument comes to you, passes, and settles at the mouth of its own housing */
+    var rz = t < 0.18 ? lerp(-10.5, -4.2, easeOut(t / 0.18))
+           : t < 0.42 ? lerp(-4.2, -2.8, ease((t - 0.18) / 0.24))
+           : t < 0.66 ? lerp(-2.8, -2.6, (t - 0.42) / 0.24)
+           : t < 0.86 ? lerp(-2.6, 12.6, ease((t - 0.66) / 0.20))
+           : lerp(12.6, 14.8, ease((t - 0.86) / 0.14));
+    S.rig.position.set(lerp(0, 0.4, clamp01(t / 0.9)), 0, rz);
+    S.cage.material.opacity = lerp(0.5, 0.92, ease(clamp01((t - 0.62) / 0.28)));
+
+    /* THE LOCK. three rings that have spent the act on three axes flatten into one plane,
+       their spins converge, the rows reprint in phosphor and the machine stops. */
+    var flat = ease(clamp01((t - 0.66) / 0.10));
+    var locked = t >= 0.76;
+    var spin = locked ? 0.76 : t;
+
+    var active = t < 0.33 ? 0 : t < 0.66 ? 1 : 2;
     for (var i = 0; i < 3; i++) {
-      var on = i === active, ud = S.rings[i].userData;
-      ud.loop.material.opacity = on ? 0.55 : 0.12;
+      var g = S.rings[i], ud = g.userData;
+      g.rotation.x = lerp(ud.tiltX, 0, flat);
+      g.rotation.y = lerp(ud.tiltY, 0, flat);
+      var own = [2.1, -2.8, 3.6][i];
+      g.rotation.z = lerp(spin * own, spin * 2.1, flat);
+
+      var on = locked || i === active;
+      ud.bezel.material.opacity = on ? 0.55 : 0.12;
       for (var b = 0; b < ud.batches.length; b++) {
-        var m = ud.batches[b].material;
-        m.opacity = on ? 0.95 : 0.15;
-        m.color.set(on ? 0x7BE38A : 0xE9EBEF);
+        var im = ud.batches[b], m = im.material;
+        var wantLit = on;
+        if (m.map !== (wantLit ? im.userData.lit : im.userData.dim)) {
+          m.map = wantLit ? im.userData.lit : im.userData.dim;
+          m.needsUpdate = true;
+        }
+        m.opacity = locked ? 1 : (on ? 0.95 : 0.15);
       }
     }
+
+    /* eighteen plates seat one at a time, then snap parallel at the lock */
+    var snap = ease(clamp01((t - 0.76) / 0.05));
+    for (var k = 0; k < 18; k++) {
+      var seatAt = 0.10 + ((k + 1) / 18) * 0.46;
+      var seat = clamp01((t - (seatAt - 0.03)) / 0.03);
+      var sx = lerp(0.06, 1, ease(seat));
+      S.pv.set(0, -1.7 + (k / 17) * 3.4, 0);
+      S.pe.set(0, lerp(k * 8 * Math.PI / 180, 0, snap), 0);
+      S.ps.set(sx, 1, 1);
+      S.pm.compose(S.pv, S.pq.setFromEuler(S.pe), S.ps);
+      S.plates.setMatrixAt(k, S.pm);
+      var lit = seat > 0.99;
+      S.plates.setColorAt(k, col.setHex(lit ? 0x7BE38A : 0x3A424A));
+    }
+    S.plates.instanceMatrix.needsUpdate = true;
+    if (S.plates.instanceColor) S.plates.instanceColor.needsUpdate = true;
+
+    /* the three tiers light one after another beneath the stack */
+    for (var c2 = 0; c2 < 96; c2++) {
+      var tier = Math.floor(c2 / 32);
+      S.collars.setColorAt(c2, col.setHex(tier <= active ? 0x7BE38A : 0x9AA6B2));
+    }
+    if (S.collars.instanceColor) S.collars.instanceColor.needsUpdate = true;
+
+    /* refusal cools once the instrument takes over */
+    for (var q2 = 0; q2 < 6; q2++) {
+      var qa = (q2 / 6) * TAU;
+      S.cv.set(Math.cos(qa) * 2.4, Math.sin(qa) * 2.4, 0);
+      S.ce.set(t * 4.2, t * 4.2, 0);
+      S.cm.compose(S.cv, S.cq.setFromEuler(S.ce), S.cs);
+      S.cubes.setMatrixAt(q2, S.cm);
+      S.cubes.setColorAt(q2, col.setHex(active === 2 ? 0xFF3B21 : 0x5A1A10));
+    }
+    S.cubes.instanceMatrix.needsUpdate = true;
+    if (S.cubes.instanceColor) S.cubes.instanceColor.needsUpdate = true;
+
+    S.trail.material.opacity = locked ? 0.05 : (active === 0 ? 0.42 : 0.1);
+    S.needle.rotation.z = -t * TAU * 1.5;
+    S.chord.material.opacity = Math.pow(clamp01(1 - Math.abs(t - 0.76) / 0.045), 2);
+    S.chord.rotation.z = spin * 2.1;
   }
 };
 
