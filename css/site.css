@@ -1,16 +1,20 @@
-/* motty is awesome v3 - "The Average".
-   Cold instrument black. The world carries the page; the type behaves. */
+/* motty is awesome — nine worlds.
+   Base ground is a cold instrument black. Each act sets --accent, and two of them
+   invert the whole page, so the chrome always belongs to the world you are in. */
 
 :root{
   --ink:#08090B;
-  --ink-2:#0E1014;
-  --bone:#E9EBEF;
-  --ash:#98A1AE;
-  --steel:#5C6573;      /* rules, borders and inactive wireframe only, 3.38:1 */
-  --steel-txt:#747D8B;  /* the same role at text size, 4.79:1 on --ink */
+  --bone:#E9EBEF;      /* 16.7:1 on ink */
+  --ash:#98A1AE;       /* 7.63:1 */
+  --steel:#5C6573;     /* rules and borders only, 3.38:1 */
+  --steel-txt:#747D8B; /* the same role at text size, 4.79:1 */
   --line:rgba(233,235,239,.13);
-  --signal:#FF4A1C;
-  --on-signal:#0A0605;
+  --accent:#E9EBEF;
+  --paper:#EDEBE6;
+  --paper-ink:#14161A; /* 16.0:1 on paper */
+  --paper-bar:#4A463F;
+  --pale:#DDE0E4;
+  --pale-ink:#0E0F12;  /* 14.5:1 on pale */
   --edge:clamp(16px,3.4vw,52px);
 
   --display:"Clash Display","Helvetica Neue",system-ui,sans-serif;
@@ -26,198 +30,105 @@ body{
   font-family:var(--body-f);font-size:17px;line-height:1.6;
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
-h1,h2,p{margin:0}
-::selection{background:var(--signal);color:var(--on-signal)}
-:focus-visible{outline:2px solid var(--signal);outline-offset:4px}
+h1,h2,p,dl,dd,dt{margin:0}
+::selection{background:var(--accent);color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
 
-/* ---------- the world ---------- */
-#world{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;
-  opacity:0;transition:opacity 1.4s ease}
+/* ---------- the world layer ---------- */
+#world{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;opacity:0}
 html.world-on #world{opacity:1}
-html.can-refuse.world-on #world{cursor:crosshair}
+html.world-on.can-refuse #world{cursor:crosshair}
 
-/* static stand-in so a WebGL or CDN failure still reads as a considered page */
+/* a considered ground for no-JS, no-WebGL and slow networks */
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
-    repeating-linear-gradient(90deg,transparent 0 118px,rgba(92,101,115,.16) 118px 119px),
-    repeating-linear-gradient(0deg,transparent 0 84px,rgba(92,101,115,.10) 84px 85px),
+    repeating-linear-gradient(90deg,transparent 0 118px,rgba(92,101,115,.14) 118px 119px),
+    repeating-linear-gradient(0deg,transparent 0 84px,rgba(92,101,115,.09) 84px 85px),
     radial-gradient(120% 90% at 50% 46%,#101318 0%,var(--ink) 62%);
-  transition:opacity 1.2s ease}
+  transition:opacity 1s ease}
 html.world-on body::before{opacity:0}
 
 .vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
-  background:radial-gradient(112% 86% at 50% 48%,transparent 42%,rgba(4,5,7,.72) 100%)}
-.scan{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.055;
-  background:repeating-linear-gradient(0deg,rgba(233,235,239,.9) 0 1px,transparent 1px 4px)}
+  background:radial-gradient(112% 86% at 50% 48%,transparent 44%,rgba(4,5,7,.66) 100%);
+  transition:opacity .5s ease}
+.scan{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.05;
+  background:repeating-linear-gradient(0deg,rgba(233,235,239,.9) 0 1px,transparent 1px 4px);
+  transition:opacity .5s ease}
+html.is-paper .vignette,html.is-pale .vignette{opacity:0}
+html.is-paper .scan,html.is-pale .scan{opacity:0}
 
-/* ---------- pinned instrument frame ---------- */
+/* ---------- the instrument chrome ---------- */
 .hud{position:fixed;inset:0;z-index:20;pointer-events:none;
   font-family:var(--mono);font-size:10.5px;font-weight:400;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--ash)}
-.hud > span{position:absolute;text-shadow:0 0 14px rgba(8,9,11,.98),0 0 5px rgba(8,9,11,1)}
-.hud i{color:var(--steel-txt);font-style:normal;padding:0 .35em}
-.hud b{font-weight:500;color:var(--bone)}
+  text-transform:uppercase;color:var(--ash);
+  transition:color .4s ease}
+.hud > span{position:absolute;text-shadow:0 0 14px rgba(8,9,11,.96),0 0 5px rgba(8,9,11,.9)}
+.hud i{color:var(--steel-txt);font-style:normal;padding:0 .3em}
+.hud b{font-weight:500;color:var(--bone);transition:color .4s ease}
 .hud-tl{top:var(--edge);left:var(--edge);color:var(--bone)}
 .hud-tr{top:var(--edge);right:var(--edge)}
 .hud-bl{bottom:var(--edge);left:var(--edge)}
 .hud-br{bottom:var(--edge);right:var(--edge)}
-html.refusing .hud-br b{color:var(--signal)}
+.hud-bc{left:50%;bottom:var(--edge);transform:translateX(-50%);white-space:nowrap}
+html.has-refused .hud-br b{color:var(--accent)}
+.hud-bc b{color:var(--accent)}
 
-.rail{top:22vh;bottom:22vh;right:calc(var(--edge) - 6px);width:1px;
-  background:rgba(233,235,239,.14)}
-.rail i{position:absolute;top:0;left:-1px;width:3px;height:100%;display:block;
-  background:var(--signal);transform:scaleY(0);transform-origin:top;
-  transition:transform .12s linear}
+/* the chrome inverts wholesale for the two light worlds */
+html.is-paper .hud,html.is-pale .hud{color:#4A5058}
+html.is-paper .hud > span,html.is-pale .hud > span{text-shadow:0 0 12px rgba(237,235,230,.9)}
+html.is-paper .hud b,html.is-pale .hud b{color:#14161A}
+html.is-paper .hud i,html.is-pale .hud i{color:#6B7078}
+html.is-paper .hud-tl,html.is-pale .hud-tl{color:#14161A}
 
-/* ---------- beats ---------- */
-main{position:relative;z-index:10}
-/* the beats let pointer events fall through to the world; only the copy column catches them,
-   so the page stays selectable and the corridor stays clickable */
-.beat{position:relative;min-height:100svh;display:flex;align-items:center;
-  padding:14vh var(--edge);pointer-events:none}
-.beat .panel{position:relative;width:min(100%,540px);padding:clamp(20px,2.6vw,34px) 0;
-  pointer-events:auto}
-.beat:nth-of-type(even) .panel{margin-left:auto}
-/* local scrim: guarantees contrast over the lattice without drawing a card */
-.beat .panel::before{content:"";position:absolute;z-index:-1;
-  inset:-40% -50% -40% -64%;
-  background:radial-gradient(62% 56% at 40% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 46%,rgba(8,9,11,.9) 66%,rgba(8,9,11,.55) 82%,rgba(8,9,11,0) 100%)}
-.beat:nth-of-type(even) .panel::before{inset:-40% -64% -40% -50%;
-  background:radial-gradient(62% 56% at 60% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 46%,rgba(8,9,11,.9) 66%,rgba(8,9,11,.55) 82%,rgba(8,9,11,0) 100%)}
-/* the last act plays on one side while the destination holds the other */
-.beat--price .panel{margin-left:auto}
-.beat--price .panel::before{inset:-34% -64% -34% -50%;
-  background:radial-gradient(62% 56% at 60% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 46%,rgba(8,9,11,.9) 66%,rgba(8,9,11,.55) 82%,rgba(8,9,11,0) 100%)}
+/* the pip rail keeps the colour of every act visited, so it becomes a record of the trip */
+.rail{top:50%;right:calc(var(--edge) - 4px);transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:9px}
+.pip{display:block;width:7px;height:7px;background:rgba(233,235,239,.2);
+  transition:background .4s ease,transform .3s ease,box-shadow .3s ease}
+.pip.is-now{transform:scale(1.7)}
+.pip.is-on{box-shadow:0 0 10px 1px rgba(0,0,0,.4)}
+html.is-paper .pip,html.is-pale .pip{background:rgba(20,22,26,.22)}
 
+/* ---------- type ---------- */
 .lede{font-family:var(--mono);font-size:10.5px;font-weight:400;letter-spacing:.16em;
   text-transform:uppercase;color:var(--ash);padding-left:26px;position:relative}
 .lede i{font-style:normal;color:var(--steel-txt);padding:0 .3em}
-.lede::before{content:"";position:absolute;left:0;top:.62em;width:16px;height:1px;
-  background:var(--signal)}
+.lede::before{content:"";position:absolute;left:0;top:.62em;width:16px;height:1.5px;
+  background:var(--accent)}
 
-.beat h1,.beat h2{font-family:var(--display);font-weight:600;line-height:1.02;
+.act h1,.act h2{font-family:var(--display);font-weight:600;line-height:1.03;
   letter-spacing:-.022em;color:var(--bone);text-wrap:balance;
-  font-size:clamp(31px,4.3vw,58px);margin-top:clamp(18px,2.4vw,26px)}
-.say{margin-top:clamp(16px,2vw,22px);max-width:46ch;color:var(--ash);
+  font-size:clamp(30px,4.1vw,56px);margin-top:clamp(18px,2.4vw,26px)}
+.title{font-size:clamp(38px,6.6vw,96px);line-height:.98;letter-spacing:-.03em;
+  text-transform:lowercase}
+.hollow{-webkit-text-stroke:1.6px var(--bone);color:transparent}
+@supports not ((-webkit-text-stroke:1px #000)){ .hollow{color:var(--bone)} }
+
+.say{margin-top:clamp(16px,2vw,22px);max-width:48ch;color:var(--ash);
   font-size:clamp(15.5px,1.15vw,17.5px);line-height:1.62}
 
-.cue{margin-top:clamp(24px,3vw,34px);display:inline-flex;align-items:center;gap:11px;
+.cue{margin-top:clamp(22px,3vw,32px);display:inline-flex;align-items:center;gap:11px;
   font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--bone)}
-.blip{width:6px;height:6px;flex:none;background:var(--signal);
-  box-shadow:0 0 12px 2px rgba(255,74,28,.55)}
+.blip{width:6px;height:6px;flex:none;background:var(--accent)}
 @media (prefers-reduced-motion:no-preference){
   .blip{animation:blip 1.9s steps(1,end) infinite}
   @keyframes blip{0%,60%{opacity:1}61%,100%{opacity:.18}}
 }
 .cue--act .m{display:none}
-html.refused-once .cue--act{color:var(--ash)}
 
-/* ---------- the registry list: strikes itself out as the beat lands ---------- */
-.tells{list-style:none;margin:clamp(20px,2.6vw,28px) 0 0;padding:0;
-  display:grid;grid-template-columns:1fr 1fr;gap:7px 24px}
-.tells li{position:relative;font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
-  text-transform:uppercase;color:var(--ash);padding:2px 0;width:max-content;max-width:100%}
-.tells li::after{content:"";position:absolute;left:0;top:52%;height:1.5px;width:100%;
-  background:var(--signal);transform:scaleX(0);transform-origin:left}
-.js .beat.is-on .tells li::after{transform:scaleX(1);
-  transition:transform .5s cubic-bezier(.2,.8,.3,1)}
-.js .beat.is-on .tells li:nth-child(2)::after{transition-delay:.07s}
-.js .beat.is-on .tells li:nth-child(3)::after{transition-delay:.14s}
-.js .beat.is-on .tells li:nth-child(4)::after{transition-delay:.21s}
-.js .beat.is-on .tells li:nth-child(5)::after{transition-delay:.28s}
-.js .beat.is-on .tells li:nth-child(6)::after{transition-delay:.35s}
-.js .beat.is-on .tells li:nth-child(7)::after{transition-delay:.42s}
-.js .beat.is-on .tells li:nth-child(8)::after{transition-delay:.49s}
-.js .beat.is-on .tells li:nth-child(9)::after{transition-delay:.56s}
-.js .beat.is-on .tells li:nth-child(10)::after{transition-delay:.63s}
-.beat--reg .panel{width:min(100%,600px)}
-.beat--reg .panel::before,.beat:nth-of-type(even).beat--reg .panel::before{inset:-46% -60% -46% -50%}
-@media (prefers-reduced-motion:reduce){
-  .js .beat .tells li::after{transform:scaleX(1);transition:none}
-}
-@media (max-width:520px){ .tells{grid-template-columns:1fr} }
-
-/* ---------- the price, as an instrument readout ---------- */
-.beat--price .panel{width:min(100%,660px)}
-.price{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-  padding:clamp(22px,3vw,34px) 0}
-.price .lede{padding-left:26px}
-.stage{margin-top:clamp(14px,2vw,20px);min-height:1.02em}
-.amount{font-family:var(--display);font-weight:600;letter-spacing:-.035em;line-height:.92;
-  font-size:clamp(58px,11vw,132px);color:var(--bone)}
-.amount .cur{font-size:.44em;vertical-align:.62em;margin-right:.06em;color:var(--steel)}
-.reveal-copy .rc-big{font-family:var(--display);font-weight:600;letter-spacing:-.03em;
-  line-height:.96;font-size:clamp(48px,9vw,104px);color:var(--signal)}
-.reveal-copy .rc-sub{margin-top:16px;max-width:40ch;color:var(--bone);
-  font-size:clamp(15.5px,1.2vw,18px);line-height:1.55}
-.stage .reveal-copy{display:none}
-.price.flipped .amount-copy{display:none}
-.price.flipped .reveal-copy{display:block}
-
-.buyrow{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;
-  margin-top:clamp(22px,3vw,32px)}
-.buy{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.16em;
-  text-transform:uppercase;cursor:pointer;color:var(--bone);background:transparent;
-  border:1px solid var(--steel);border-radius:0;padding:15px 26px;
-  transition:color .18s ease,background-color .18s ease,border-color .18s ease}
-.buy:hover{background:var(--signal);border-color:var(--signal);color:#fff}
-.buy:active{transform:translateY(1px)}
-.buyrow .fine{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--steel-txt)}
-.buyrow .fine i{font-style:normal;padding:0 .3em}
-
-/* ---------- sign off ---------- */
-.beat--end .panel{width:min(100%,640px)}
-.sign{font-family:var(--display);font-weight:600;letter-spacing:-.03em;line-height:.98;
-  font-size:clamp(38px,6.4vw,86px);color:var(--bone)}
-.sign em{font-style:normal;color:var(--signal)}
-.say--end{margin-top:clamp(18px,2.4vw,26px)}
-.colophon{margin-top:clamp(40px,6vw,72px);padding-top:18px;border-top:1px solid var(--line);
-  display:flex;flex-wrap:wrap;gap:8px 26px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--steel-txt)}
-
-/* ---------- reveal: a wipe, not a fade-up ---------- */
-.js .beat .panel > *,
-.js .beat .panel .price > *{
-  opacity:0;clip-path:inset(0 100% -0.45em 0);
+/* ---------- reveal: a wipe, never a fade up ---------- */
+.js .act__copy > *{opacity:0;clip-path:inset(0 100% -0.45em 0);
   transition:opacity .45s ease,clip-path .95s cubic-bezier(.16,.84,.28,1)}
-.js .beat.is-on .panel > *,
-.js .beat.is-on .panel .price > *{
-  opacity:1;clip-path:inset(-0.4em -0.6em -0.5em -0.3em)}
-.js .beat .panel > *:nth-child(2){transition-delay:.09s}
-.js .beat .panel > *:nth-child(3){transition-delay:.17s}
-.js .beat .panel > *:nth-child(4){transition-delay:.24s}
-.js .beat .panel .price > *:nth-child(2){transition-delay:.09s}
-.js .beat .panel .price > *:nth-child(3){transition-delay:.17s}
-
-/* ---------- responsive ---------- */
-@media (max-width:860px){
-  body{font-size:16px}
-  .beat{padding:12vh var(--edge)}
-  .beat .panel,.beat:nth-of-type(even) .panel{width:100%;margin-left:0}
-  .beat .panel::before,.beat:nth-of-type(even) .panel::before,
-  .beat--reg .panel::before,.beat--price .panel::before{
-    inset:-22% -30% -22% -30%;
-    background:radial-gradient(78% 62% at 50% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 50%,rgba(8,9,11,.88) 72%,rgba(8,9,11,0) 100%)}
-  .rail{display:none}
-  .hud{font-size:9.5px;letter-spacing:.08em}
-  .cue--act .d{display:none}
-  .cue--act .m{display:inline}
-  .scan{opacity:.04}
-}
-@media (max-width:520px){
-  .hud-tr{display:none}
-  .beat h1,.beat h2{font-size:clamp(31px,8.6vw,44px)}
-  .amount{font-size:clamp(52px,16vw,86px)}
-  .reveal-copy .rc-big{font-size:clamp(42px,14vw,72px)}
-  .buy{width:100%;text-align:center}
-}
+.js .act.is-on .act__copy > *{opacity:1;clip-path:inset(-0.4em -0.6em -0.5em -0.3em)}
+.js .act .act__copy > *:nth-child(2){transition-delay:.08s}
+.js .act .act__copy > *:nth-child(3){transition-delay:.15s}
+.js .act .act__copy > *:nth-child(4){transition-delay:.22s}
+.js .act .act__copy > *:nth-child(5){transition-delay:.28s}
+.js .act .act__copy > *:nth-child(6){transition-delay:.34s}
 
 @media (prefers-reduced-motion:reduce){
-  .js .beat .panel > *,.js .beat .panel .price > *{
-    opacity:1;clip-path:none;transition:none}
+  .js .act__copy > *{opacity:1;clip-path:none;transition:none}
   #world{opacity:1}
   *{animation-duration:.001ms !important;animation-iteration-count:1 !important}
 }

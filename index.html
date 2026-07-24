@@ -4,17 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>motty is awesome</title>
-<meta name="description" content="Fly through the average website the machine builds every time, past the registry of everything it refuses, and out the other side.">
+<meta name="description" content="Nine worlds, one argument. A page that shows you the average website from the inside, then takes it apart in front of you.">
 <meta property="og:title" content="motty is awesome">
-<meta property="og:description" content="You are inside the average. Every panel is the same page the machine builds every time. Keep scrolling and something else is waiting.">
+<meta property="og:description" content="You are standing inside the average website. Keep scrolling and it gets taken apart in front of you.">
 <meta property="og:type" content="website">
-<link rel="icon" href="img/favicon.svg?v=3" type="image/svg+xml">
+<link rel="icon" href="img/favicon.svg?v=4" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=9">
+<link rel="stylesheet" href="css/site.css?v=18">
+<link rel="stylesheet" href="css/acts.css?v=18">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
@@ -23,122 +24,178 @@
 <div class="vignette" aria-hidden="true"></div>
 <div class="scan" aria-hidden="true"></div>
 
-<!-- pinned instrument frame -->
 <div class="hud" aria-hidden="true">
   <span class="hud-tl">MJ&#39;s Studio</span>
-  <span class="hud-tr">design dna <i>/</i> build 003</span>
-  <span class="hud-bl"><b id="hud-sect">00</b> <span id="hud-name">boot</span></span>
+  <span class="hud-tr">design dna <i>/</i> no two alike</span>
+  <span class="hud-bl"><b id="hud-sect">01</b> <span id="hud-name">the default room</span></span>
   <span class="hud-br">refused <b id="hud-count">000</b></span>
-  <span class="rail"><i id="rail-fill"></i></span>
+  <span class="hud-bc">state<i>:</i> <b id="hud-state">undecided</b></span>
+  <span class="rail" id="pips"></span>
 </div>
 
 <main>
 
-  <section class="beat beat--open" id="b0" data-name="boot">
-    <div class="panel">
-      <p class="lede">A skill, not a template.</p>
-      <h1>The machine builds the same website every time.</h1>
-      <p class="say">You are standing in it. Every panel around you is that page: one hero, three cards, one call to action, repeated until the fog takes it.</p>
-      <p class="cue"><i class="blip"></i>scroll to fly</p>
-    </div>
-  </section>
-
-  <section class="beat" id="b1" data-name="the average">
-    <div class="panel">
-      <p class="lede">01 <i>/</i> the average</p>
-      <h2>This is what average looks like from the inside.</h2>
-      <p class="say">It is not a style anyone chose. It is the middle of everything a model was ever trained on, and every model falls into it by reflex. Recognise the shape. You have been sold it before.</p>
-    </div>
-  </section>
-
-  <section class="beat" id="b2" data-name="the refusal">
-    <div class="panel">
-      <p class="lede">02 <i>/</i> the refusal</p>
-      <h2>The skill starts by saying no.</h2>
-      <p class="say">Before a single line of code exists, it goes looking for everything that gives a page away as machine made, and throws it out.</p>
-      <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it</span><span class="m">tap any panel to refuse it</span></p>
-    </div>
-  </section>
-
-  <section class="beat beat--reg" id="b3" data-name="the registry">
-    <div class="panel">
-      <p class="lede">03 <i>/</i> the registry</p>
-      <h2>It keeps a list of everything that gives you away.</h2>
-      <p class="say">These are real entries, and the walls around you are made of them. The list only ever grows.</p>
-      <ul class="tells" id="tells">
-        <li>em dashes</li>
-        <li>animated count ups</li>
-        <li>purple gradient heroes</li>
-        <li>gradient text</li>
-        <li>a hero and three cards</li>
-        <li>glassmorphism</li>
-        <li>fabricated testimonials</li>
-        <li>stock photo smiles</li>
-        <li>a floating 3D blob</li>
-        <li>elevate your brand</li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="beat beat--reg" id="b4" data-name="the absolutes">
-    <div class="panel">
-      <p class="lede">04 <i>/</i> the absolutes</p>
-      <h2>Most rules bend. A few never do.</h2>
-      <p class="say">A brief can lift almost anything, and when it does, that gets written down with the reason. A short list is never lifted by anyone, including the person paying: no invented proof, no unreadable contrast, and nothing ships that has not been looked at in a real render.</p>
-    </div>
-  </section>
-
-  <section class="beat" id="b5" data-name="the method">
-    <div class="panel">
-      <p class="lede">05 <i>/</i> the method</p>
-      <h2>Refusing is only half of it.</h2>
-      <p class="say">Strip out the tells and you are left with something plain, which fails just as badly. So every choice gets decided instead of defaulted: the concept, the face, the palette, the bones, and the one moment worth building properly. Written down before anything is built.</p>
-    </div>
-  </section>
-
-  <section class="beat" id="b6" data-name="the ledger">
-    <div class="panel">
-      <p class="lede">06 <i>/</i> the ledger</p>
-      <h2>And it is not allowed to repeat itself.</h2>
-      <p class="say">Every build is logged against the axes that make a look: the ground, the face, the bones, the motion, the signature. The next one has to move on all of them. The fastest way to look machine made is to look exactly like the last thing you made.</p>
-    </div>
-  </section>
-
-  <section class="beat beat--one" id="b7" data-name="the one">
-    <div class="panel">
-      <p class="lede">07 <i>/</i> the one</p>
-      <h2>What comes out the other side.</h2>
-      <p class="say">One page that could not have been generated. That is the only test that matters, and it is the reason you are still scrolling.</p>
-    </div>
-  </section>
-
-  <section class="beat beat--price" id="b8" data-name="the price">
-    <div class="panel">
-      <div class="price" id="price">
-        <p class="lede">08 <i>/</i> the price</p>
-        <div class="stage">
-          <div class="amount-copy"><p class="amount"><span class="cur">&#36;</span>10,000</p></div>
-          <div class="reveal-copy" role="status" aria-live="polite">
-            <p class="rc-big">Kidding.</p>
-            <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not have this link.</p>
-          </div>
-        </div>
-        <div class="buyrow">
-          <button class="buy" id="buy" type="button">Get the skill</button>
-          <span class="fine">one time <i>/</i> yours to keep</span>
-        </div>
+  <!-- ============ 01 ============ -->
+  <section class="act h190" id="a0" data-name="the default room" data-accent="#E9EBEF">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">generated by default</p>
+        <h1 class="title"><span class="hollow">motty</span> is <span class="hollow">awesome</span></h1>
+        <p class="say">This is the page a model builds when nobody decides anything. It is not bad. It is the same one it built for everybody else, and you are standing inside it.</p>
+        <p class="cue"><i class="blip"></i>scroll to begin</p>
       </div>
     </div>
   </section>
 
-  <section class="beat beat--end" id="b9" data-name="sign off">
-    <div class="panel">
-      <p class="sign">motty is <em>awesome</em>.</p>
-      <p class="say say--end">He will not tell you what is inside the skill. He does not have to. You just flew through the argument.</p>
-      <div class="colophon">
-        <span>MJ&#39;s Studio</span>
-        <span>a demonstration, not a store</span>
-        <span>2026</span>
+  <!-- ============ 02 ============ -->
+  <section class="act h170 act--flat act--paper" id="a1" data-name="the registry"
+           data-accent="#B82A14" data-dom data-paper>
+    <div class="act__pin">
+      <div class="act__copy sheet">
+        <p class="lede">02 <i>/</i> the registry</p>
+        <h2>It keeps a written list of everything that gives you away.</h2>
+        <p class="say">Anything on the list is refused before it is drawn. Three tiers: ABSOLUTE cannot be switched off by anyone, HARD needs a written reason, OFF is a choice and the choice is logged. Six entries are shown below because they are already common knowledge. The rest is not published. It is enforced.</p>
+
+        <ol class="registry" id="registry-rows">
+          <li style="--i:0"><span class="n">001</span><span class="entry">gradient headline text</span><span class="tier">absolute</span></li>
+          <li style="--i:1"><span class="n">002</span><span class="entry">a hero, three cards, testimonials, a call to action</span><span class="tier">absolute</span></li>
+          <li style="--i:2"><span class="n">003</span><span class="entry">glassmorphism</span><span class="tier">hard</span></li>
+          <li style="--i:3"><span class="n">004</span><span class="entry">a floating low poly blob</span><span class="tier">hard</span></li>
+          <li style="--i:4"><span class="n">005</span><span class="entry">animated number count ups</span><span class="tier">absolute</span></li>
+          <li style="--i:5"><span class="n">006</span><span class="entry">hand drawn browser chrome</span><span class="tier">absolute</span></li>
+          <li style="--i:6"><span class="n">007</span><span class="bar" style="--w:15" aria-label="withheld"></span><span class="tier">absolute</span></li>
+          <li style="--i:7"><span class="n">008</span><span class="bar" style="--w:9" aria-label="withheld"></span><span class="tier">hard</span></li>
+          <li style="--i:8"><span class="n">009</span><span class="bar" style="--w:22" aria-label="withheld"></span><span class="tier">off</span></li>
+          <li style="--i:9"><span class="n">010</span><span class="bar" style="--w:12" aria-label="withheld"></span><span class="tier">hard</span></li>
+          <li style="--i:10"><span class="n">011</span><span class="bar" style="--w:18" aria-label="withheld"></span><span class="tier">absolute</span></li>
+          <li style="--i:11"><span class="n">012</span><span class="bar" style="--w:7" aria-label="withheld"></span><span class="tier">off</span></li>
+          <li style="--i:12"><span class="n">013</span><span class="bar" style="--w:20" aria-label="withheld"></span><span class="tier">hard</span></li>
+          <li style="--i:13"><span class="n">014</span><span class="bar" style="--w:11" aria-label="withheld"></span><span class="tier">absolute</span></li>
+          <li style="--i:14"><span class="n">015</span><span class="bar" style="--w:16" aria-label="withheld"></span><span class="tier">off</span></li>
+          <li style="--i:15"><span class="n">016</span><span class="bar" style="--w:24" aria-label="withheld"></span><span class="tier">hard</span></li>
+          <li style="--i:16"><span class="n">017</span><span class="bar" style="--w:10" aria-label="withheld"></span><span class="tier">hard</span></li>
+          <li style="--i:17"><span class="n">018</span><span class="bar" style="--w:19" aria-label="withheld"></span><span class="tier">absolute</span></li>
+          <li style="--i:18"><span class="n">019</span><span class="bar" style="--w:13" aria-label="withheld"></span><span class="tier">off</span></li>
+          <li style="--i:19"><span class="n">020</span><span class="bar" style="--w:21" aria-label="withheld"></span><span class="tier">hard</span></li>
+        </ol>
+        <p class="stamp">internal <i>/</i> not for publication</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section class="act h200 act--right" id="a2" data-name="the assembly floor" data-accent="#6FD3FF">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">03 <i>/</i> the assembly floor</p>
+        <h2>The average page is not designed. It is produced.</h2>
+        <p class="say">Default template, default spacing, default everything, at volume. Watch the press long enough and you can see the moment a page stops being a decision and becomes a unit.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section class="act h200" id="a3" data-name="the output run" data-accent="#FF3B21">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">04 <i>/</i> the output run</p>
+        <h2>The registry in action, at speed.</h2>
+        <p class="say">Every one of these came off the same line. The skill refuses them on sight, before a line of code is written. You can help.</p>
+        <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it</span><span class="m">tap any panel to refuse it</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section class="act h170 act--right" id="a4" data-name="the instrument" data-accent="#7BE38A">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">05 <i>/</i> the instrument</p>
+        <h2>Refusing is only half of it.</h2>
+        <p class="say">Strip out the tells and you are left with something plain, which fails just as badly. So the other half is an instrument: eighteen files, three tiers, and a written decision for the concept, the face, the palette, the bones and the one moment worth building properly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section class="act h240" id="a5" data-name="the kiln" data-accent="#FF7A18">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">06 <i>/</i> the kiln</p>
+        <h2>Below the line it is a default. Above it, somebody decided.</h2>
+        <p class="say">Same object, both times. Structure, rhythm, weight and temperature each get named and written down before anything is drawn. A default is somebody else's decision wearing your client's name.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section class="act h170 act--flat" id="a6" data-name="the record" data-accent="#E9EBEF" data-dom>
+    <div class="act__pin">
+      <div class="act__copy record">
+        <p class="lede">07 <i>/</i> the record</p>
+        <h2 class="pull"><span class="hollow">every</span> choice made.<br>none of them <span class="hollow">shown.</span></h2>
+        <p class="say">The decisions ship with the build. You can see that every one of them was made. You cannot see what any of them were. That is not coyness, it is the product.</p>
+
+        <div class="toggle">
+          <input type="checkbox" id="form-toggle">
+          <label for="form-toggle">show the form, not the content</label>
+        </div>
+
+        <dl class="record-list">
+          <div><dt>type scale</dt><dd>set</dd></div>
+          <div><dt>motion budget</dt><dd><span class="bar" style="--w:8" aria-label="withheld"></span></dd></div>
+          <div><dt>contrast floor</dt><dd>set</dd></div>
+          <div><dt>grid attitude</dt><dd><span class="bar" style="--w:11" aria-label="withheld"></span></dd></div>
+          <div><dt>ground</dt><dd>set</dd></div>
+          <div><dt>accent policy</dt><dd><span class="bar" style="--w:9" aria-label="withheld"></span></dd></div>
+          <div><dt>macrostructure</dt><dd>set</dd></div>
+          <div><dt>signature</dt><dd><span class="bar" style="--w:14" aria-label="withheld"></span></dd></div>
+          <div><dt>voice</dt><dd>set</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section class="act h190 act--right" id="a7" data-name="the ledger field" data-accent="#B82A14" data-pale>
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">08 <i>/</i> the ledger field</p>
+        <h2>Every build is logged, and the next one has to go somewhere else.</h2>
+        <p class="say">The ledger records the axes that make a look: the ground, the face, the bones, the motion, the signature. The next build reads it and is not allowed to repeat them. It started empty and it was never backfilled, because a borrowed face is the fastest way to look machine made.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section class="act h210 act--right" id="a8" data-name="the commission" data-accent="#E8C77A">
+    <div class="act__pin">
+      <div class="act__copy">
+        <p class="lede">09 <i>/</i> the commission</p>
+        <h2>What comes out the other side.</h2>
+        <p class="say">One page that could not have been generated, with a written record of why every part of it looks the way it does. That is the whole skill, and you have been standing in a demonstration of it for nine worlds.</p>
+
+        <div class="price" id="price">
+          <div class="price__stage">
+            <p class="amount"><span class="cur">&#36;</span>10,000</p>
+            <div class="price__reveal" role="status" aria-live="polite">
+              <p class="rc-big">Kidding.</p>
+              <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not have this link.</p>
+            </div>
+          </div>
+          <div class="buyrow">
+            <button class="buy" id="buy" type="button" aria-expanded="false">Get the skill</button>
+            <span class="fine">one time <i>/</i> yours to keep</span>
+          </div>
+        </div>
+
+        <p class="sign">motty is <em>awesome</em>.</p>
+        <div class="colophon">
+          <span>MJ&#39;s Studio</span>
+          <span>no two alike</span>
+          <span>refused <b id="hud-total">000</b></span>
+          <span>a demonstration, not a store</span>
+        </div>
       </div>
     </div>
   </section>
@@ -152,6 +209,6 @@
   }
 }
 </script>
-<script src="js/site.js?v=10"></script>
+<script src="js/site.js?v=18"></script>
 </body>
 </html>
