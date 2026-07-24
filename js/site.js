@@ -18,6 +18,35 @@
   var hudState = $("#hud-state"), hudTotal = $("#hud-total"), railWrap = $("#pips");
   var registry = $("#registry-rows"), canvas = $("#world");
 
+  var tx = $("#t-x"), ty = $("#t-y"), tz = $("#t-z"), tLens = $("#t-lens");
+  var tLensLabel = $("#t-lensLabel"), tAct = $("#t-act"), tP = $("#t-p"), tFill = $("#t-fill");
+  var scaleFill = $("#scale-fill"), scaleLabel = $("#scale-label"), gzMode = $("#gz-mode");
+  var gz = {
+    lx: $("#gz-lx"), ly: $("#gz-ly"), lz: $("#gz-lz"),
+    cx: $("#gz-cx"), cy: $("#gz-cy"), cz: $("#gz-cz")
+  };
+
+  /* project the three world axes onto the camera's own right/up vectors, so the gizmo
+     shows where the world actually is from where the camera actually stands */
+  function drawGizmo(cam) {
+    if (!gz.lx) return;
+    var m = cam.matrixWorld.elements;
+    var rx = m[0], ry = m[1], rz = m[2];      /* camera right */
+    var ux = m[4], uy = m[5], uz = m[6];      /* camera up */
+    var R = 27, C = 42;
+    var axes = [[1, 0, 0, "x"], [0, 1, 0, "y"], [0, 0, 1, "z"]];
+    for (var i = 0; i < 3; i++) {
+      var a = axes[i];
+      var sx = C + (a[0] * rx + a[1] * ry + a[2] * rz) * R;
+      var sy = C - (a[0] * ux + a[1] * uy + a[2] * uz) * R;
+      var line = gz["l" + a[3]], dot = gz["c" + a[3]];
+      line.setAttribute("x2", sx.toFixed(1));
+      line.setAttribute("y2", sy.toFixed(1));
+      dot.setAttribute("cx", sx.toFixed(1));
+      dot.setAttribute("cy", sy.toFixed(1));
+    }
+  }
+
   var world = null;                      /* set once three.js lands, may stay null forever */
   var refused = 0;
   var current = -1;
@@ -126,6 +155,9 @@
     var span = Math.max(1, g.h - vh);
     var t = clamp((y - g.top) / span, 0, 1);
 
+    var docSpan = doc.documentElement.scrollHeight - vh;
+    var state01 = docSpan > 0 ? clamp(y / docSpan, 0, 1) : 0;
+
     setAct(idx);
     driveSubs(idx, t);
 
@@ -141,6 +173,27 @@
 
     /* act 02 strikes its registry rows off one custom property, no work per row */
     if (registry) registry.style.setProperty("--p", (idx === 1 ? t : (idx > 1 ? 1 : 0)).toFixed(4));
+
+    /* alche's move: the instrument prints its own working. every number below is read
+       off the live renderer, so it moves because the camera moves. */
+    if (world && world.ctx) {
+      var cam = world.ctx.camera;
+      if (cam && tx) {
+        tx.textContent = cam.position.x.toFixed(2);
+        ty.textContent = cam.position.y.toFixed(2);
+        tz.textContent = cam.position.z.toFixed(2);
+        var ortho = !!cam.isOrthographicCamera;
+        tLensLabel.textContent = ortho ? "zoom" : "fov";
+        tLens.textContent = (ortho ? cam.zoom : cam.fov).toFixed(2);
+        tAct.textContent = ("0" + (idx + 1)).slice(-2);
+        tP.textContent = t.toFixed(3);
+        tFill.style.width = (t * 100).toFixed(1) + "%";
+        if (gzMode) gzMode.textContent = ortho ? "ortho" : "persp";
+        drawGizmo(cam, ortho);
+      }
+    }
+    if (scaleFill) scaleFill.style.height = (state01 * 100).toFixed(2) + "%";
+    if (scaleLabel) scaleLabel.textContent = ("0" + (idx + 1)).slice(-2);
 
     /* the state readout flips once per act, at that act's flip frame */
     if (hudState) hudState.textContent = (!g.dom && t > 0.55) ? "decided" : "undecided";

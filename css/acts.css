@@ -251,3 +251,78 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
   .h170,.h190,.h200,.h210,.h240{min-height:100svh}
   .registry li::after{transform:scaleX(1)}
 }
+
+
+/* ================================================================
+   TELEMETRY
+   Real values read off the live renderer every frame, printed like a
+   3D tool left open. Nothing here is decorative: the numbers move
+   because the camera moves.
+   ================================================================ */
+.telem{position:fixed;right:calc(var(--edge) - 2px);top:50%;transform:translateY(-50%);
+  z-index:20;pointer-events:none;display:grid;gap:3px 0;justify-items:end;
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--steel-txt);transition:color .4s ease}
+.telem-t{opacity:.72}
+.telem-t i{font-style:normal;color:var(--accent)}
+.telem-r{display:flex;gap:7px;margin-bottom:7px}
+.telem-r b{font-weight:400;color:var(--bone);font-variant-numeric:tabular-nums;
+  transition:color .4s ease}
+.telem-bar{display:block;width:58px;height:2px;background:rgba(233,235,239,.16);margin-top:3px}
+.telem-bar i{display:block;height:100%;width:0;background:var(--accent);
+  transform-origin:left}
+html.is-pale .telem,html.is-paperworld .telem{color:#6E685C}
+html.is-pale .telem-r b,html.is-paperworld .telem-r b{color:#14161A}
+html.is-pale .telem-bar,html.is-paperworld .telem-bar{background:rgba(20,22,26,.16)}
+/* the pip rail moves up so the two instrument blocks never collide */
+.rail{top:auto;bottom:calc(var(--edge) + 26px);transform:none}
+@media (max-width:1100px){ .telem{display:none} }
+
+/* ================================================================
+   FROM alche.studio, the parts that are not its intro:
+   a measured edge with a section label, a live axis gizmo reading the
+   real camera orientation, and mono tag pills under the copy.
+   Everything here shows actual state. None of it is decoration.
+   ================================================================ */
+.draft{position:fixed;inset:0;z-index:4;pointer-events:none;
+  --draft-ink:rgba(233,235,239,.16)}
+html.is-pale .draft,html.is-paperworld .draft{--draft-ink:rgba(20,22,26,.2)}
+.draft-scale{position:absolute;left:calc(var(--edge) - 14px);top:16vh;bottom:16vh;width:9px;
+  border-left:1px solid var(--draft-ink);
+  background:repeating-linear-gradient(180deg,var(--draft-ink) 0 1px,transparent 1px 22px)}
+.draft-scale i{position:absolute;left:-1px;width:3px;top:0;height:0;
+  background:var(--accent);transition:height .12s linear}
+.draft-label{position:absolute;left:calc(var(--edge) - 14px);top:calc(16vh - 20px);
+  font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--steel-txt)}
+html.is-pale .draft-label,html.is-paperworld .draft-label{color:#6E685C}
+
+.gizmo{position:fixed;right:calc(var(--edge) - 4px);top:calc(var(--edge) + 34px);
+  z-index:20;pointer-events:none;width:84px;text-align:center}
+.gizmo svg{width:84px;height:84px;overflow:visible}
+.gizmo line{stroke-width:1.6}
+#gz-lx{stroke:#FF5A47}#gz-ly{stroke:#63D68A}#gz-lz{stroke:#5AA8FF}
+.gz-x{fill:#FF5A47}.gz-y{fill:#63D68A}.gz-z{fill:#5AA8FF}
+.gz-ring{fill:none;stroke:var(--draft-ink);stroke-width:1}
+.gizmo-cap{display:block;margin-top:2px;font-family:var(--mono);font-size:8.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--steel-txt)}
+.gizmo-cap i{font-style:normal;color:var(--accent)}
+html.is-pale .gizmo-cap,html.is-paperworld .gizmo-cap{color:#6E685C}
+
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:clamp(16px,2vw,22px)}
+.tags span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  padding:5px 9px;border:1px solid var(--steel);color:var(--ash);border-radius:2px}
+html.is-pale .tags span,html.is-paperworld .tags span{border-color:rgba(20,22,26,.28);color:#4A4438}
+
+@media (max-width:1100px){ .gizmo{display:none} }
+@media (max-width:860px){ .draft-scale,.draft-label{display:none} }
+
+/* every world behind these is busy, so the instrument blocks get a real plate rather
+   than relying on a text shadow that a bright wireframe wall defeats */
+.telem,.gizmo{background:rgba(8,9,11,.72);padding:9px 11px;border-radius:2px;
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.telem{border:1px solid rgba(233,235,239,.09)}
+.gizmo{border:1px solid rgba(233,235,239,.09)}
+.draft-label{background:rgba(8,9,11,.72);padding:2px 5px;border-radius:2px}
+html.is-pale .telem,html.is-pale .gizmo,html.is-pale .draft-label,
+html.is-paperworld .telem,html.is-paperworld .gizmo,html.is-paperworld .draft-label{
+  background:rgba(231,228,221,.82);border-color:rgba(20,22,26,.12)}
