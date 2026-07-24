@@ -41,8 +41,9 @@ h1,h2,p{margin:0}
 .tag{font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
 .tag b{color:var(--spot-hi);font-weight:500}
 
-/* ---- the stage light ---- */
-#spot{position:fixed;left:0;top:0;width:60vmax;height:60vmax;z-index:1;pointer-events:none;
+/* ---- the stage light (inside a clipping layer so it can never cause overflow on mobile) ---- */
+.fx{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none}
+#spot{position:absolute;left:0;top:0;width:60vmax;height:60vmax;pointer-events:none;
   transform:translate3d(calc(var(--mx,50vw) - 30vmax), calc(var(--my,42vh) - 30vmax), 0);
   background:radial-gradient(circle at center, rgba(255,150,110,.5) 0%, rgba(255,106,69,.24) 24%, rgba(255,106,69,0) 60%);
   mix-blend-mode:screen;will-change:transform}
@@ -70,6 +71,8 @@ h1,h2,p{margin:0}
   font-size:clamp(16px,1.9vw,21px);line-height:1.5;color:var(--body)}
 .hero .cue{margin-top:clamp(22px,3.4vw,34px);display:inline-flex;align-items:center;gap:12px;
   font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.hero .cue .c-touch{display:none}
+@media (hover:none){.hero .cue .c-desktop{display:none}.hero .cue .c-touch{display:inline}}
 .hero .cue .beam{width:26px;height:7px;border-radius:6px;
   background:linear-gradient(90deg,var(--spot),var(--spot-hi));box-shadow:0 0 16px 2px rgba(255,106,69,.6)}
 
@@ -96,9 +99,8 @@ h1,h2,p{margin:0}
 .marquee:hover .mq-track{animation-play-state:paused}
 
 /* ---- proof ---- */
-.proof{text-align:center}
-.proof .big{margin:0 auto;max-width:15ch}
-.proof .note{margin:clamp(26px,4vw,42px) auto 0;max-width:48ch;font-size:19px;line-height:1.58;color:var(--body)}
+.proof .big{max-width:20ch}
+.proof .note{margin-top:clamp(24px,3.6vw,40px);max-width:52ch;font-size:20px;line-height:1.56;color:var(--body)}
 .proof .note strong{color:var(--ink);font-weight:600}
 
 /* ---- price curtain ---- */
@@ -177,14 +179,15 @@ h1,h2,p{margin:0}
   text-transform:uppercase;color:var(--spot-hi)}
 .hero-foot .hf .v{font-size:clamp(15px,1.6vw,18px);line-height:1.42;color:var(--body)}
 
-/* ---- how it goes: steps ---- */
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(24px,4vw,56px);
-  margin-top:clamp(30px,4.5vw,52px)}
-.step{border-top:2px solid var(--line);padding-top:clamp(16px,2vw,22px)}
-.step .n{font-family:var(--mono);font-size:12.5px;font-weight:500;letter-spacing:.1em;color:var(--spot-hi)}
-.step h3{font-family:var(--display);font-weight:600;font-size:clamp(24px,3vw,40px);line-height:1.02;
-  letter-spacing:-.01em;color:var(--ink);margin:clamp(10px,1.4vw,16px) 0 clamp(8px,1vw,12px)}
-.step p{color:var(--body);font-size:17px;line-height:1.55;max-width:34ch}
+/* ---- how it goes: an editorial numbered list, not a card row ---- */
+.steps{display:flex;flex-direction:column;margin-top:clamp(24px,3.6vw,40px)}
+.step{display:grid;grid-template-columns:auto 1fr;gap:clamp(18px,4vw,54px);align-items:baseline;
+  padding:clamp(20px,3vw,34px) 0;border-top:1px solid var(--line)}
+.step .n{font-family:var(--display);font-weight:700;font-size:clamp(30px,4.4vw,60px);line-height:1;
+  letter-spacing:-.02em;color:var(--spot-hi)}
+.step h3{font-family:var(--display);font-weight:600;font-size:clamp(23px,2.9vw,38px);line-height:1.04;
+  letter-spacing:-.01em;color:var(--ink);margin:0 0 clamp(6px,.8vw,10px)}
+.step p{color:var(--body);font-size:clamp(16px,1.6vw,18px);line-height:1.5;max-width:46ch;margin:0}
 
 /* ---- about page ---- */
 .about-hero{min-height:auto;padding:clamp(104px,17vh,188px) 0 clamp(30px,5vh,56px)}

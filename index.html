@@ -12,12 +12,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Familjen+Grotesk:wght@400..700&family=Spline+Sans+Mono:wght@400..600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=3">
+<link rel="stylesheet" href="css/site.css?v=4">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
 <div class="grain" aria-hidden="true"></div>
-<div id="spot" aria-hidden="true"></div>
+<div class="fx" aria-hidden="true"><div id="spot"></div></div>
 
 <header class="top">
   <a class="mark" href="/">MJ&#39;s Studio</a>
@@ -32,7 +32,7 @@
     <div class="stage">
       <h1 class="title" id="title">motty is awesome</h1>
       <p class="sub" data-r>A website that makes websites. He will not tell you what is inside it. He does not have to.</p>
-      <span class="cue" data-r><span class="beam" aria-hidden="true"></span>move your cursor</span>
+      <span class="cue" data-r><span class="beam" aria-hidden="true"></span><span class="c-desktop">move your cursor</span><span class="c-touch">drag across the words</span></span>
     </div>
     <div class="hero-foot" data-r>
       <div class="hf"><span class="k">The work</span><span class="v">Websites that could only be his.</span></div>
@@ -42,7 +42,6 @@
   </section>
 
   <section class="sect claim wrap" aria-labelledby="claim">
-    <p class="kick" data-r>What he makes</p>
     <h2 class="big lede" id="claim" data-r>Every site he builds looks like a <span class="hot">serious studio</span> made it. Not one looks like a <span class="hot">machine</span> did.</h2>
     <p class="say" data-r>That is a real skill, not a turn of phrase. Ask a hundred people to spot the one a robot made, and they will point everywhere but here.</p>
   </section>
@@ -59,19 +58,17 @@
   </section>
 
   <section class="sect steps-sect wrap" aria-labelledby="how">
-    <p class="kick" data-r>How it goes</p>
     <h2 class="big" id="how" data-r>Three steps. <span class="hot">No catch.</span></h2>
     <div class="steps">
-      <div class="step" data-r><span class="n">01</span><h3>You ask.</h3><p>One sentence about what you need is enough to start.</p></div>
-      <div class="step" data-r><span class="n">02</span><h3>He designs it.</h3><p>From your world, not a template. One real point of view, built at full strength.</p></div>
-      <div class="step" data-r><span class="n">03</span><h3>It looks like nothing else.</h3><p>And nothing like a machine made it. That is the whole promise.</p></div>
+      <div class="step" data-r><span class="n">01</span><div class="body"><h3>You ask.</h3><p>One sentence about what you need is plenty to start.</p></div></div>
+      <div class="step" data-r><span class="n">02</span><div class="body"><h3>He designs it.</h3><p>From your world, not a template. One real point of view, built all the way up.</p></div></div>
+      <div class="step" data-r><span class="n">03</span><div class="body"><h3>It looks like nothing else.</h3><p>And nothing like a machine made it. That is the whole promise, and the whole trick.</p></div></div>
     </div>
   </section>
 
   <section class="sect proof wrap" aria-labelledby="proof">
-    <p class="kick" data-r>The demonstration</p>
     <h2 class="big" id="proof" data-r>You are looking at one <span class="hot">right now.</span></h2>
-    <p class="note" data-r>This page was built with the skill, top to bottom. If it read like a template you would have left already. <strong>You are still here.</strong></p>
+    <p class="note" data-r>This exact page was built with it, top to bottom. If it looked machine made, you would have closed the tab three sections ago. <strong>You did not.</strong></p>
   </section>
 
   <div class="curtain wrap">
@@ -104,6 +101,6 @@
   </footer>
 </main>
 
-<script src="js/site.js?v=3"></script>
+<script src="js/site.js?v=4"></script>
 </body>
 </html>

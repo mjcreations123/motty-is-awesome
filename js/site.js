@@ -62,6 +62,12 @@
         target = { x: e.clientX, y: e.clientY }; lastMove = performance.now();
       }, { passive: true });
     }
+    var fromTouch = function (e) {
+      if (!e.touches || !e.touches[0]) return;
+      target = { x: e.touches[0].clientX, y: e.touches[0].clientY }; lastMove = performance.now();
+    };
+    window.addEventListener("touchstart", fromTouch, { passive: true });
+    window.addEventListener("touchmove", fromTouch, { passive: true });
     var loop = function (now) {
       if (!t0) t0 = now;
       var idle = now - lastMove > 1400;
