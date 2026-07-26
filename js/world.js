@@ -19,6 +19,12 @@ export function createWorld(THREE, canvas, acts, hooks) {
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !small, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.25 : 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  /* Film, not screensaver: ACES grading is most of the difference between a three.js demo
+     and something that reads shot. The two light-ground acts opt out via act.noGrade,
+     because a clear colour is not tone mapped and a graded card on an ungraded paper
+     ground would read as dirt. */
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
   renderer.setClearColor(0x08090B, 1);
   renderer.localClippingEnabled = true;          /* the Kiln bisects a slab with clip planes */
   renderer.shadowMap.enabled = !small;
@@ -68,9 +74,18 @@ export function createWorld(THREE, canvas, acts, hooks) {
     ctx.root = s.root;
     ctx.pickable = s.pickable;
     ctx.actState = ctx.state[act.id] = ctx.state[act.id] || {};
+    /* Reduced motion runs frame() once and latches, but entering an act also rebuilds its
+       fog at the density the act was BORN with, so a latched still frame re-entered later
+       kept the wrong atmosphere. Re-entry now earns exactly one fresh frame() call. */
+    ctx.actState.__staticDone = false;
 
     grab.on = false; grab.dy = 0;          /* the handle belongs to the act, not to the page */
+    renderer.toneMapping = act.noGrade ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = act.exposure || 1.12;
     if (act.bg != null) bgTarget.set(act.bg);
+    /* Every act change happens behind the cut, so the ground snaps rather than easing:
+       easing it leaked the previous act's ground into the first settled frames. */
+    bg.copy(bgTarget);
     scene.fog = act.fog ? act.fog(THREE) : null;
     ctx.camera = act.ortho ? ortho : persp;
     if (!act.ortho) { persp.fov = act.fov || 55; persp.updateProjectionMatrix(); }

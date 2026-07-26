@@ -19,50 +19,35 @@
 
   var acts = $$(".act");
   var hudSect = $("#hud-sect"), hudName = $("#hud-name"), hudCount = $("#hud-count");
-  var hudState = $("#hud-state"), hudTotal = $("#hud-total"), railWrap = $("#pips");
+  var hudTotal = $("#hud-total");
   var registry = $("#registry-rows"), canvas = $("#world");
 
-  var tx = $("#t-x"), ty = $("#t-y"), tz = $("#t-z"), tLens = $("#t-lens");
-  var tLensLabel = $("#t-lensLabel"), tAct = $("#t-act"), tP = $("#t-p"), tFill = $("#t-fill");
-  var scaleFill = $("#scale-fill"), scaleLabel = $("#scale-label"), gzMode = $("#gz-mode");
-  var gz = {
-    lx: $("#gz-lx"), ly: $("#gz-ly"), lz: $("#gz-lz"),
-    cx: $("#gz-cx"), cy: $("#gz-cy"), cz: $("#gz-cz")
-  };
+  /* the splice: chapter card and letterbox bars, driven from the same scroll frame */
+  var cut = $("#cut"), cutNum = $("#cut-num"), cutName = $("#cut-name");
+  var barT = $(".lbar--t"), barB = $(".lbar--b");
+  var coarse = root.classList.contains("is-coarse");
 
-  /* project the three world axes onto the camera's own right/up vectors, so the gizmo
-     shows where the world actually is from where the camera actually stands */
-  function drawGizmo(cam) {
-    if (!gz.lx) return;
-    var m = cam.matrixWorld.elements;
-    var rx = m[0], ry = m[1], rz = m[2];      /* camera right */
-    var ux = m[4], uy = m[5], uz = m[6];      /* camera up */
-    var R = 27, C = 42;
-    var axes = [[1, 0, 0, "x"], [0, 1, 0, "y"], [0, 0, 1, "z"]];
-    for (var i = 0; i < 3; i++) {
-      var a = axes[i];
-      var sx = C + (a[0] * rx + a[1] * ry + a[2] * rz) * R;
-      var sy = C - (a[0] * ux + a[1] * uy + a[2] * uz) * R;
-      var line = gz["l" + a[3]], dot = gz["c" + a[3]];
-      line.setAttribute("x2", sx.toFixed(1));
-      line.setAttribute("y2", sy.toFixed(1));
-      dot.setAttribute("cx", sx.toFixed(1));
-      dot.setAttribute("cy", sy.toFixed(1));
+  /* film grain, drawn at runtime like every other texture on this page. the scanline
+     gradient it replaces read as a cheap CRT filter; grain reads as stock. */
+  (function grain() {
+    var el = $(".scan");
+    if (!el) return;
+    var c = doc.createElement("canvas");
+    c.width = c.height = 132;
+    var x = c.getContext("2d");
+    var d = x.createImageData(132, 132);
+    for (var i = 0; i < d.data.length; i += 4) {
+      var v = (Math.random() * 255) | 0;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+      d.data[i + 3] = 255;
     }
-  }
+    x.putImageData(d, 0, 0);
+    el.style.backgroundImage = "url(" + c.toDataURL() + ")";
+  })();
 
   var world = null;                      /* set once three.js lands, may stay null forever */
   var refused = 0;
   var current = -1;
-
-  /* ---------- the pip rail: one per act, keeping the colour of every act visited ---------- */
-  var pips = acts.map(function (a, i) {
-    var el = doc.createElement("i");
-    el.className = "pip";
-    el.setAttribute("data-i", i);
-    railWrap.appendChild(el);
-    return el;
-  });
 
   function setAccent(i) {
     var a = acts[i];
@@ -71,11 +56,6 @@
     root.classList.toggle("is-paper", a.hasAttribute("data-paper"));
     root.classList.toggle("is-pale", a.hasAttribute("data-pale"));
     root.classList.toggle("is-paperworld", a.hasAttribute("data-paperworld"));
-    pips.forEach(function (p, n) {
-      p.classList.toggle("is-on", n <= i);
-      if (n <= i) p.style.background = acts[n].getAttribute("data-accent") || "#E9EBEF";
-      p.classList.toggle("is-now", n === i);
-    });
   }
 
   function setAct(i) {
@@ -194,9 +174,6 @@
     var span = Math.max(1, g.h - vh);
     var t = clamp((y - g.top) / span, 0, 1);
 
-    var docSpan = doc.documentElement.scrollHeight - vh;
-    var state01 = docSpan > 0 ? clamp(y / docSpan, 0, 1) : 0;
-
     setAct(idx);
     driveSubs(idx, t);
 
@@ -204,8 +181,8 @@
     var fade = 1;
     if (g.dom) fade = 0;
     else {
-      var inRamp = idx === 0 ? 1 : clamp(t / 0.035, 0, 1);
-      var outRamp = idx === geom.length - 1 ? 1 : clamp((1 - t) / 0.035, 0, 1);
+      var inRamp = idx === 0 ? 1 : clamp(t / 0.06, 0, 1);
+      var outRamp = idx === geom.length - 1 ? 1 : clamp((1 - t) / 0.06, 0, 1);
       fade = Math.min(inRamp, outRamp);
     }
     if (world) world.drive(idx, t, fade);
@@ -213,31 +190,50 @@
     /* act 02 strikes its registry rows off one custom property, no work per row */
     if (registry) registry.style.setProperty("--p", (idx === 1 ? t : (idx > 1 ? 1 : 0)).toFixed(4));
 
-    /* alche's move: the instrument prints its own working. every number below is read
-       off the live renderer, so it moves because the camera moves. */
-    if (world && world.ctx) {
-      var cam = world.ctx.camera;
-      if (cam && tx) {
-        tx.textContent = cam.position.x.toFixed(2);
-        ty.textContent = cam.position.y.toFixed(2);
-        tz.textContent = cam.position.z.toFixed(2);
-        var ortho = !!cam.isOrthographicCamera;
-        tLensLabel.textContent = ortho ? "zoom" : "fov";
-        tLens.textContent = (ortho ? cam.zoom : cam.fov).toFixed(2);
-        tAct.textContent = ("0" + (idx + 1)).slice(-2);
-        tP.textContent = t.toFixed(3);
-        tFill.style.width = (t * 100).toFixed(1) + "%";
-        if (gzMode) gzMode.textContent = ortho ? "ortho" : "persp";
-        drawGizmo(cam, ortho);
-      }
-    }
-    if (scaleFill) scaleFill.style.height = (state01 * 100).toFixed(2) + "%";
-    if (scaleLabel) scaleLabel.textContent = ("0" + (idx + 1)).slice(-2);
-
-    /* the state readout flips once per act, at that act's flip frame */
-    if (hudState) hudState.textContent = (!g.dom && t > 0.55) ? "decided" : "undecided";
-
+    driveCut(idx, t, g, fade);
     passed();
+  }
+
+  /* ---------- the splice ----------
+     Every act change is cut like film, not faded like a slideshow. Into the boundary the
+     frame whips (a scroll-scrubbed zoom or pan with a motion-blur smear), the letterbox
+     tightens, and a chapter card holds the black: the number and name of the world you are
+     entering, in that world's accent. All of it is a pure function of scroll, so scrubbing
+     backwards runs the splice in reverse exactly. */
+  var lastCard = -1;
+  function driveCut(idx, t, g, fade) {
+    if (!cut) return;
+    var cutP = g.dom ? clamp(1 - Math.min(t, 1 - t) / 0.06, 0, 1) : (1 - fade);
+    var target = t > 0.5 ? Math.min(idx + 1, acts.length - 1) : idx;
+
+    if (target !== lastCard) {
+      lastCard = target;
+      cutNum.textContent = ("0" + (target + 1)).slice(-2);
+      cutName.textContent = acts[target].getAttribute("data-name") || "";
+      /* the card wears the accent of the world it announces, not the one being left */
+      cut.style.setProperty("--accent", acts[target].getAttribute("data-accent") || "#E9EBEF");
+    }
+    cut.style.opacity = (cutP * cutP).toFixed(3);
+
+    if (reduce) return;
+    var b = 1 + 0.55 * cutP;
+    if (barT) { barT.style.transform = "scaleY(" + b.toFixed(3) + ")"; }
+    if (barB) { barB.style.transform = "scaleY(" + b.toFixed(3) + ")"; }
+
+    if (!g.dom && world) {
+      var boundary = t > 0.5 ? idx : idx - 1;
+      var side = t > 0.5 ? 1 : -1;          /* outgoing vs incoming half of the same cut */
+      var kind = ((boundary % 3) + 3) % 3;  /* punch-in, whip-up, whip-across, repeating */
+      var sc = kind === 0 ? 1 + 0.10 * cutP : 1 + 0.04 * cutP;
+      var txv = 0, tyv = 0;
+      if (kind === 1) tyv = -6 * side * cutP;
+      if (kind === 2) txv = -6 * side * cutP;
+      canvas.style.transform = "scale(" + sc.toFixed(4) + ") translate(" + txv.toFixed(2) + "vh," + tyv.toFixed(2) + "vh)";
+      canvas.style.filter = cutP > 0.02 ? "blur(" + ((coarse ? 5 : 12) * cutP).toFixed(1) + "px)" : "";
+    } else {
+      canvas.style.transform = "";
+      canvas.style.filter = "";
+    }
   }
 
   var ticking = false;
@@ -268,12 +264,24 @@
     });
   }
 
-  /* ---------- act 09: the price ---------- */
+  /* ---------- act 09: the purchase ----------
+     It looks like a checkout because the joke needs one: the order is real-shaped, the
+     button processes, and then the total recalculates to zero. No fields, no payment,
+     nothing collected: the colophon already says it, a demonstration, not a store. */
   var price = $("#price"), buy = $("#buy");
-  function flipPrice() {
-    if (!price || price.classList.contains("flipped")) return;
+  function settle() {
+    price.classList.remove("processing");
     price.classList.add("flipped");
-    if (buy) buy.setAttribute("aria-expanded", "true");
+    buy.textContent = "it is yours";
+    buy.disabled = true;
+    buy.setAttribute("aria-expanded", "true");
+  }
+  function flipPrice() {
+    if (!price || price.classList.contains("flipped") || price.classList.contains("processing")) return;
+    if (reduce) return settle();
+    price.classList.add("processing");
+    buy.textContent = "processing";
+    setTimeout(settle, 900);
   }
   if (buy) buy.addEventListener("click", flipPrice);
 

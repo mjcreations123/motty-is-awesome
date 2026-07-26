@@ -227,7 +227,7 @@ export const actRoom = {
  * document you scroll past. Camera: a close tracking shot along the wall.
  * ========================================================================== */
 export const actRegistry = {
-  id: "registry", accent: "#B82A14", bg: 0xE7E4DD, fov: 46, restT: 0.5,
+  id: "registry", accent: "#B82A14", bg: 0xE7E4DD, fov: 46, restT: 0.5, noGrade: true,
   fog: function (T) { return new T.Fog(0xE7E4DD, 30, 110); },
 
   build: function (ctx) {
@@ -1878,322 +1878,548 @@ export const actRun = {
 };
 
 /* ============================================================================
- * 05 — THE INSTRUMENT
- * Mercury's lesson taken literally: the object is built from the product's own material.
- * Camera: dead still, only the lens breathes. Scale: arm's length. Accent: phosphor.
+ * 05 — THE VAULT   (module scope helpers)
+ *
+ * Eighteen monolithic slabs on a polished stone floor, three concentric rings:
+ * nine short, six taller, three tallest around a written column of light. The
+ * camera starts dead overhead (the rings read as a carved seal), corkscrews
+ * down through two hundred degrees, and ends low among the inner trio. At the
+ * lock every slab rotates into radial alignment at once and the vault decides.
+ * Every threshold below is a pure function of t: scrubbing unwinds it exactly.
  * ========================================================================== */
+
+var VLT_GREEN = 0x7BE38A;
+var VLT_GR = 0.4824, VLT_GG = 0.8902, VLT_GB = 0.5412;   /* #7BE38A as floats */
+
+/* the three rings: count, radius, slab height, and a yaw offset so no two rings
+   share a spoke. 9 + 6 + 3 = EIGHTEEN on every device, one of the three true
+   quantities this page is allowed to show. Never fewer, never more. */
+/* the middle ring's yaw offset is load-bearing: the camera's corkscrew ends at
+   azimuth 2.02..2.29 rad (t 0.72..1.0), and 0.53 puts that whole window in the
+   middle of the gap between the spokes at 1.577 and 2.624 (>=0.33 rad clear,
+   >=0.26 after worst-case pointer drift), so the payoff frame is never a slab
+   back. 1.05 parked the lens 0.03 rad behind a slab for the entire lock. */
+var VLT_RINGS = [
+  { n: 9, r: 10.5, h: 3.2, off: 0.26 },
+  { n: 6, r: 6.6,  h: 5.6, off: 0.53 },
+  { n: 3, r: 3.2,  h: 8.5, off: 0.62 }
+];
+var VLT_N = 18;
+
+/* the descent awakens the rings outer to inner as the camera spirals down past
+   them, then the lock closes over six hundredths of the act. All pure t. */
+var VLT_STEP_T = [0.20, 0.44, 0.62];
+var VLT_LOCK0 = 0.74, VLT_LOCK1 = 0.80;
+
+function VLT_lockK(t) { return ease(clamp01((t - VLT_LOCK0) / (VLT_LOCK1 - VLT_LOCK0))); }
+function VLT_stepK(t, i) { return ease(clamp01((t - VLT_STEP_T[i]) / 0.06)); }
+
+/* unit slab corners for the merged edge lines: x/z slightly proud of the faces
+   so the lines never z-fight the body, y as a 0..1 factor multiplied by height
+   (base lifted a hair off the floor so the bottom rectangle never fights it) */
+var VLT_CORNERS = new Float32Array([
+  -0.705, 0.004, -0.2285,    0.705, 0.004, -0.2285,
+  -0.705, 0.004,  0.2285,    0.705, 0.004,  0.2285,
+  -0.705, 1.002, -0.2285,    0.705, 1.002, -0.2285,
+  -0.705, 1.002,  0.2285,    0.705, 1.002,  0.2285
+]);
+var VLT_EDGES = [0, 1, 1, 3, 3, 2, 2, 0, 4, 5, 5, 7, 7, 6, 6, 4, 0, 4, 1, 5, 2, 6, 3, 7];
+
+/* rows of non-semantic block runs: a redacted page. White on black, tinted by
+   the material that samples it. Margins are generous and the extreme right
+   column stays black, so the side faces of the box (their UVs parked there)
+   carry no etch. Nothing here is a word at any zoom. */
+function VLT_etchTexture(T, R) {
+  return makeTexture(T, R, 256, 512, function (g, w, h) {
+    g.fillStyle = "#000000";
+    g.fillRect(0, 0, w, h);
+    var rnd = mulberry32(7);
+    var y = 26;
+    var row = 0;
+    while (y < h - 28) {
+      row++;
+      if (rnd() < 0.10) { y += 18; continue; }               /* a held-back line */
+      var header = (row % 7 === 1);
+      var x = 20 + (header ? 0 : Math.floor(rnd() * 3) * 10);
+      var rh = header ? 9 : 6;
+      var runs = header ? 1 : 2 + Math.floor(rnd() * 4);
+      for (var s = 0; s < runs && x < 224; s++) {
+        var len = header ? 120 + rnd() * 70 : 14 + rnd() * 44;
+        if (x + len > 228) len = 228 - x;
+        g.globalAlpha = header ? 0.95 : 0.45 + rnd() * 0.45;
+        g.fillStyle = "#FFFFFF";
+        g.fillRect(x, y, len, rh);
+        x += len + 7 + rnd() * 12;
+      }
+      g.globalAlpha = 1;
+      y += header ? 24 : 17;
+    }
+  });
+}
+
+/* the vault floor: polished near-black stone, engraved concentric hairlines,
+   scattered mason-mark arcs, a deeper double engraving under each ring.
+   Very low alpha phosphor: the floor holds the geometry, the light does not
+   live here until the rings light. */
+function VLT_floorTexture(T, R) {
+  return makeTexture(T, R, 1024, 1024, function (g, w, h) {
+    var cx = w / 2, cy = h / 2;
+    var base = g.createRadialGradient(cx, cy, 10, cx, cy, 512);
+    base.addColorStop(0, "#111417");
+    base.addColorStop(0.55, "#0C0E11");
+    base.addColorStop(1, "#07080A");
+    g.fillStyle = base;
+    g.fillRect(0, 0, w, h);
+
+    var rnd = mulberry32(13);
+    /* stone flecks */
+    for (var f = 0; f < 900; f++) {
+      var fa = rnd() * TAU, fr = Math.sqrt(rnd()) * 505;
+      g.globalAlpha = 0.012 + rnd() * 0.02;
+      g.fillStyle = rnd() < 0.5 ? "#FFFFFF" : "#9FB4C0";
+      g.fillRect(cx + Math.cos(fa) * fr, cy + Math.sin(fa) * fr, 1.4, 1.4);
+    }
+    g.globalAlpha = 1;
+
+    /* concentric hairlines, one every ~1.05 world units (floor radius 30 -> 512px) */
+    g.strokeStyle = "rgba(123,227,138,0.045)";
+    g.lineWidth = 1;
+    for (var r = 30; r <= 500; r += 18) {
+      g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.stroke();
+    }
+    /* mason marks: short offset arcs at scattered radii and bearings. Nothing
+       radial and nothing evenly divided: full-length spokes plus a ticked
+       bezel read as a dial face, and a dial is exactly the instrument-panel
+       family this act must not belong to. Arcs read as tooling on stone. */
+    g.lineWidth = 1.5;
+    for (var s = 0; s < 44; s++) {
+      var mr2 = 70 + rnd() * 415;
+      var ma = rnd() * TAU, mw = 0.08 + rnd() * 0.46;
+      g.strokeStyle = "rgba(123,227,138," + (0.03 + rnd() * 0.035).toFixed(3) + ")";
+      g.beginPath();
+      g.arc(cx, cy, mr2, ma, ma + mw);
+      g.stroke();
+    }
+    /* the three ring engravings: a double groove under each ring of slabs */
+    g.lineWidth = 1.5;
+    for (var i = 0; i < 3; i++) {
+      var rr = (VLT_RINGS[i].r / 30) * 512;
+      g.strokeStyle = "rgba(123,227,138,0.11)";
+      g.beginPath(); g.arc(cx, cy, rr - 5, 0, TAU); g.stroke();
+      g.beginPath(); g.arc(cx, cy, rr + 5, 0, TAU); g.stroke();
+    }
+  });
+}
+
+/* a soft annulus, white: the lit floor circle under a ring of slabs. Peak sits
+   at 0.74 of the half-plane, so a plane of size 2r/0.74 lights exactly radius r. */
+function VLT_bandTexture(T, R) {
+  return makeTexture(T, R, 256, 256, function (g, w, h) {
+    var gr = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, 128);
+    gr.addColorStop(0.58, "rgba(255,255,255,0)");
+    gr.addColorStop(0.74, "rgba(255,255,255,0.85)");
+    gr.addColorStop(0.90, "rgba(255,255,255,0)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, w, h);
+  });
+}
+
+/* the same annulus in shadow: the contact dark each ring of slabs presses into
+   the polish. Broader shoulders than the light band. */
+function VLT_ringShadowTexture(T, R) {
+  return makeTexture(T, R, 256, 256, function (g, w, h) {
+    var gr = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, 128);
+    gr.addColorStop(0.50, "rgba(0,0,0,0)");
+    gr.addColorStop(0.74, "rgba(0,0,0,0.60)");
+    gr.addColorStop(0.97, "rgba(0,0,0,0)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, w, h);
+  });
+}
+
+/* vertical falloff for the beam: hot at the floor, gone at the top */
+function VLT_beamTexture(T, R) {
+  return makeTexture(T, R, 64, 256, function (g, w, h) {
+    var gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0.0, "rgba(255,255,255,0)");
+    gr.addColorStop(0.45, "rgba(255,255,255,0.45)");
+    gr.addColorStop(1.0, "rgba(255,255,255,0.95)");
+    g.fillStyle = gr;
+    g.fillRect(0, 0, w, h);
+  });
+}
+
+/* a slab box with its base on y=0 and the etch confined to the two wide faces:
+   the UVs of the side, top and bottom faces are parked on the blank right edge
+   of the etch page, so the narrow faces stay plain stone */
+function VLT_slabGeometry(T, wx, dz) {
+  var geo = new T.BoxGeometry(wx, 1, dz);
+  geo.translate(0, 0.5, 0);
+  var uv = geo.attributes.uv;
+  for (var i = 0; i < 16; i++) { uv.setXY(i, 0.995, 0.5); }   /* px,nx,py,ny faces */
+  uv.needsUpdate = true;
+  return geo;
+}
+
+/* the one layout function: slab matrices (body + etch overlay) and the merged
+   edge lines, written together so they can never disagree. Runs at build, and
+   after that ONLY while the lock is actually turning (guarded on lockK). */
+function VLT_layout(S, lockK) {
+  var inv = 1 - lockK;
+  var pos = S.edgePos, o = 0;
+  for (var i = 0; i < VLT_N; i++) {
+    var yaw = S.baseYaw[i] + S.jitter[i] * inv;
+    var hh = S.slabH[i], px = S.slabX[i], pz = S.slabZ[i];
+    S.e.set(0, yaw, 0);
+    S.q.setFromEuler(S.e);
+    S.v.set(px, 0, pz);
+    S.s.set(1, hh, 1);
+    S.m4.compose(S.v, S.q, S.s);
+    S.body.setMatrixAt(i, S.m4);
+    S.etch.setMatrixAt(i, S.m4);
+    var cy = Math.cos(yaw), sy = Math.sin(yaw);
+    for (var e2 = 0; e2 < 24; e2++) {
+      var ci = VLT_EDGES[e2] * 3;
+      var cx = VLT_CORNERS[ci], cyy = VLT_CORNERS[ci + 1] * hh, cz = VLT_CORNERS[ci + 2];
+      pos[o++] = px + cx * cy + cz * sy;
+      pos[o++] = cyy;
+      pos[o++] = pz - cx * sy + cz * cy;
+    }
+  }
+  S.body.instanceMatrix.needsUpdate = true;
+  S.etch.instanceMatrix.needsUpdate = true;
+  S.edgeAttr.needsUpdate = true;
+}
+
+/* motes inside the beam: the only thing still moving after the lock, and even
+   this is a function of t, so a scrub runs the drift backwards and the reduced
+   motion still frame is the same air every visitor gets */
+function VLT_motes(S, t) {
+  var p = S.motePos, b = S.moteBase, n = S.moteN;
+  /* the motes breathe with the beam: their radii are scaled by the same shell
+     factor, so before the lock they live inside the thin thread instead of
+     hanging in open air beside it. Still a pure function of t. */
+  var bs = lerp(0.34, 1, VLT_lockK(t));
+  for (var i = 0; i < n; i++) {
+    var j = i * 4, k = i * 3;
+    var a = b[j] + t * b[j + 3] * 0.55;
+    var r = b[j + 2] * bs;
+    p[k] = Math.cos(a) * r;
+    p[k + 1] = 0.25 + (b[j + 1] + t * b[j + 3]) % 12.4;
+    p[k + 2] = Math.sin(a) * r;
+  }
+  S.moteAttr.needsUpdate = true;
+}
+
 export const actInstrument = {
-  id: "instrument", accent: "#7BE38A", bg: 0x08090B, fov: 34, restT: 0.8,
-  fog: function () { return null; },
+  id: "instrument", accent: "#7BE38A", bg: 0x08090B, fov: 44, restT: 0.8,
+  fog: function (T) { return new T.FogExp2(0x08090B, 0.02); },
 
   build: function (ctx) {
-    var T = ctx.THREE, root = ctx.root, S = ctx.actState, small = ctx.small;
-    var GREEN = 0x7BE38A, DIM = 0xD6DEE6;
+    var T = ctx.THREE, R = ctx.renderer, root = ctx.root, S = ctx.actState, small = ctx.small;
+    var rnd = mulberry32(41);
 
-    /* the rig carries the whole instrument, so the CAMERA can stay welded in place while
-       the object still travels: on this act the journey belongs to the thing being looked at */
-    var rig = new T.Group();
-    rig.position.set(0, 0, -10.5);
-    root.add(rig);
-    S.rig = rig;
+    /* scratch: frame() and camera() never allocate */
+    S.m4 = new T.Matrix4(); S.q = new T.Quaternion(); S.e = new T.Euler();
+    S.v = new T.Vector3(); S.s = new T.Vector3(1, 1, 1);
+    S.col = new T.Color(); S.look = new T.Vector3();
 
-    /* two texture sets per field: an unprinted one with the value outlined, and a printed
-       one in phosphor. a ring does not merely brighten when it decides, it reprints. */
-    function fieldTex(label, printed) {
-      return makeTexture(T, ctx.renderer, 512, 72, function (g, w, h) {
-        g.font = '500 26px "Martian Mono", ui-monospace, monospace';
-        g.textBaseline = "middle";
-        g.fillStyle = printed ? "#7BE38A" : "#D6DEE6";
-        g.fillText(label, 10, h / 2);
-        if (printed) {
-          g.fillRect(w - 96, 22, 84, 28);
-          g.fillRect(10, h / 2 + 16, g.measureText(label).width, 2);
-        } else {
-          g.strokeStyle = "#D6DEE6"; g.lineWidth = 3;
-          g.strokeRect(w - 96, 22, 84, 28);
-        }
+    /* ---------------- the floor ---------------- */
+    var floor = new T.Mesh(new T.CircleGeometry(30, 72),
+      new T.MeshBasicMaterial({ map: VLT_floorTexture(T, R) }));
+    floor.rotation.x = -Math.PI / 2;
+    root.add(floor);
+
+    /* contact shadow + lit circle per ring: two annulus decals, both sized so
+       their band peaks exactly at the ring radius */
+    var bandTex = VLT_bandTexture(T, R);
+    var shadTex = VLT_ringShadowTexture(T, R);
+    S.ringLightMats = [];
+    for (var d = 0; d < 3; d++) {
+      var rr = VLT_RINGS[d].r, sz = (2 * rr) / 0.74;
+      var shad = new T.Mesh(new T.PlaneGeometry(sz * 1.06, sz * 1.06),
+        new T.MeshBasicMaterial({ map: shadTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+      shad.rotation.x = -Math.PI / 2;
+      shad.position.y = 0.012 + d * 0.004;
+      shad.renderOrder = 1;
+      root.add(shad);
+
+      var lm = new T.MeshBasicMaterial({
+        map: bandTex, color: VLT_GREEN, transparent: true, opacity: 0.04,
+        blending: T.AdditiveBlending, depthWrite: false
       });
+      var lit = new T.Mesh(new T.PlaneGeometry(sz, sz), lm);
+      lit.rotation.x = -Math.PI / 2;
+      lit.position.y = 0.026 + d * 0.004;
+      lit.renderOrder = 2;
+      root.add(lit);
+      S.ringLightMats.push(lm);
     }
 
-    var FIELDS = [
-      ["GROUND", "FACE", "BONES"],
-      ["MOTION", "SIGNATURE", "VOICE"],
-      ["RHYTHM", "WEIGHT", "DEPTH"]
-    ];
-    var rings = [], m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
-    var v = new T.Vector3(), s = new T.Vector3(1, 1, 1), col = new T.Color();
-
-    function ring(radius, count, tiltX, tiltY, w, h, labels) {
-      var g = new T.Group();
-      var per = Math.ceil(count / labels.length), idx = 0;
-      var batches = [];
-      labels.forEach(function (label) {
-        var n = Math.min(per, count - idx);
-        if (n <= 0) return;
-        var dimMap = fieldTex(label, false), litMap = fieldTex(label, true);
-        var im = new T.InstancedMesh(
-          new T.PlaneGeometry(w, h),
-          new T.MeshBasicMaterial({ map: dimMap, transparent: true, opacity: 0.26,
-            side: T.DoubleSide, depthWrite: false }), n);
-        for (var k = 0; k < n; k++, idx++) {
-          var a = (idx / count) * TAU;
-          v.set(Math.cos(a) * radius, Math.sin(a) * radius, 0);
-          e.set(0, 0, a + (Math.sin(a) > 0 ? -Math.PI / 2 : Math.PI / 2));
-          m4.compose(v, q.setFromEuler(e), s);
-          im.setMatrixAt(k, m4);
-        }
-        im.instanceMatrix.needsUpdate = true;
-        im.userData = { dim: dimMap, lit: litMap };
-        g.add(im); batches.push(im);
-      });
-
-      /* a graduated bezel rather than a plain hairline: it makes rotation readable */
-      var pts = [], i, a2;
-      for (i = 0; i < 128; i++) {
-        a2 = (i / 128) * TAU;
-        var a3 = ((i + 1) / 128) * TAU;
-        pts.push(Math.cos(a2) * radius, Math.sin(a2) * radius, 0,
-                 Math.cos(a3) * radius, Math.sin(a3) * radius, 0);
-      }
-      for (i = 0; i < 36; i++) {
-        a2 = (i / 36) * TAU;
-        var len = (i % 9 === 0) ? 0.28 : 0.12;
-        pts.push(Math.cos(a2) * radius, Math.sin(a2) * radius, 0,
-                 Math.cos(a2) * (radius - len), Math.sin(a2) * (radius - len), 0);
-      }
-      for (i = 0; i <= 16; i++) {
-        a2 = (i / 16) * (40 * Math.PI / 180) - 0.35;
-        var a4 = ((i + 1) / 16) * (40 * Math.PI / 180) - 0.35;
-        pts.push(Math.cos(a2) * (radius + 0.34), Math.sin(a2) * (radius + 0.34), 0,
-                 Math.cos(a4) * (radius + 0.34), Math.sin(a4) * (radius + 0.34), 0);
-      }
-      var bg = new T.BufferGeometry();
-      bg.setAttribute("position", new T.Float32BufferAttribute(pts, 3));
-      var bezel = new T.LineSegments(bg,
-        new T.LineBasicMaterial({ color: 0xE9EBEF, transparent: true, opacity: 0.2 }));
-      g.add(bezel);
-
-      g.userData = { batches: batches, bezel: bezel, tiltX: tiltX, tiltY: tiltY };
-      g.rotation.x = tiltX; g.rotation.y = tiltY;
-      rig.add(g); rings.push(g);
-      return g;
-    }
-
-    ring(5.0, small ? 56 : 96, 0, 0, 0.95, 0.24, FIELDS[0]);
-    ring(3.6, small ? 40 : 72, 62 * Math.PI / 180, 0, 0.8, 0.2, FIELDS[1]);
-    ring(2.4, small ? 28 : 48, -38 * Math.PI / 180, 0.4, 0.66, 0.17, FIELDS[2]);
-    S.rings = rings;
-
-    /* the housing. without it the void has no scale and no motion is legible at all. */
-    var cage = [];
-    function circle(n, r, fn) {
-      for (var i = 0; i < n; i++) {
-        var a = (i / n) * TAU, b = ((i + 1) / n) * TAU;
-        var p1 = fn(a, r), p2 = fn(b, r);
-        cage.push(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
+    /* ---------------- the eighteen ---------------- */
+    S.slabX = new Float32Array(VLT_N);
+    S.slabZ = new Float32Array(VLT_N);
+    S.slabH = new Float32Array(VLT_N);
+    S.baseYaw = new Float32Array(VLT_N);
+    S.jitter = new Float32Array(VLT_N);
+    S.ringOf = new Uint8Array(VLT_N);
+    var idx = 0;
+    for (var ri = 0; ri < 3; ri++) {
+      var cfg = VLT_RINGS[ri];
+      for (var k = 0; k < cfg.n; k++, idx++) {
+        var a = (k / cfg.n) * TAU + cfg.off;
+        S.slabX[idx] = Math.cos(a) * cfg.r;
+        S.slabZ[idx] = Math.sin(a) * cfg.r;
+        S.slabH[idx] = cfg.h;
+        S.baseYaw[idx] = -a - Math.PI / 2;      /* wide face square to the centre */
+        S.jitter[idx] = (rnd() - 0.5) * 0.44;   /* +-0.22 rad of unresolved yaw */
+        S.ringOf[idx] = ri;
       }
     }
-    circle(64, 6.4, function (a, r) { return [Math.cos(a) * r, Math.sin(a) * r, 0]; });
-    circle(64, 6.4, function (a, r) { return [Math.cos(a) * r, 0, Math.sin(a) * r]; });
-    circle(64, 6.4, function (a, r) { return [0, Math.cos(a) * r, Math.sin(a) * r]; });
-    cage.push(0, -6.4, 0, 0, 6.4, 0);
-    for (var gi = 0; gi < 7; gi++) {
-      var gz = -6.6 + gi * 2.2;
-      (function (zz) {
-        circle(48, 6.4, function (a, r) { return [Math.cos(a) * r, Math.sin(a) * r, zz]; });
-      })(gz);
-    }
-    var cageGeo = new T.BufferGeometry();
-    cageGeo.setAttribute("position", new T.Float32BufferAttribute(cage, 3));
-    var cageMesh = new T.LineSegments(cageGeo,
-      new T.LineBasicMaterial({ color: 0x2E353D, transparent: true, opacity: 0.5 }));
-    rig.add(cageMesh); S.cage = cageMesh;
 
-    var struts = new T.InstancedMesh(new T.BoxGeometry(0.035, 0.035, 13.2),
-      new T.MeshBasicMaterial({ color: 0x252B32 }), 8);
-    for (var si = 0; si < 8; si++) {
-      var sa = (si / 8) * TAU;
-      v.set(Math.cos(sa) * 6.4, Math.sin(sa) * 6.4, 0);
-      m4.compose(v, q.setFromEuler(e.set(0, 0, 0)), s);
-      struts.setMatrixAt(si, m4);
-    }
-    struts.instanceMatrix.needsUpdate = true;
-    rig.add(struts);
+    var etchTex = VLT_etchTexture(T, R);
 
-    /* eighteen sight plates on the polar axis: a card index that seats one plate at a
-       time as you scroll, and snaps parallel at the lock */
-    var plates = new T.InstancedMesh(new T.PlaneGeometry(0.9, 0.05),
-      new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, side: T.DoubleSide }), 18);
-    for (var pi = 0; pi < 18; pi++) plates.setColorAt(pi, col.setHex(0x3A424A));
-    if (plates.instanceColor) plates.instanceColor.needsUpdate = true;
-    rig.add(plates); S.plates = plates;
-    S.pm = new T.Matrix4(); S.pq = new T.Quaternion(); S.pe = new T.Euler();
-    S.pv = new T.Vector3(); S.ps = new T.Vector3();
-
-    /* three tier collars under the spindle: absolute, hard, off */
-    var collars = new T.InstancedMesh(new T.BoxGeometry(0.06, 0.06, 1),
-      new T.MeshBasicMaterial({ color: 0xffffff }), 96);
-    var ci = 0;
-    [1.15, 1.55, 1.95].forEach(function (rad) {
-      for (var n = 0; n < 32; n++) {
-        var a = (n / 32) * TAU;
-        v.set(Math.cos(a) * rad, -2.1, Math.sin(a) * rad);
-        e.set(0, -a, 0);
-        m4.compose(v, q.setFromEuler(e), s);
-        collars.setMatrixAt(ci, m4);
-        collars.setColorAt(ci, col.setHex(0x9AA6B2));
-        ci++;
-      }
+    /* the body: graphite stone that models under the key light, with the etched
+       rows glowing faintly phosphor via emissiveMap. One InstancedMesh. */
+    var bodyMat = new T.MeshStandardMaterial({
+      color: 0x272B31, roughness: 0.58, metalness: 0.22,
+      emissive: new T.Color(VLT_GREEN), emissiveMap: etchTex, emissiveIntensity: 0.3
     });
-    collars.instanceMatrix.needsUpdate = true;
-    if (collars.instanceColor) collars.instanceColor.needsUpdate = true;
-    rig.add(collars); S.collars = collars;
-
-    /* refusal marks, tethered, and they cool once the instrument takes over */
-    var cubes = new T.InstancedMesh(new T.BoxGeometry(0.16, 0.16, 0.16),
-      new T.MeshBasicMaterial({ color: 0xffffff }), 6);
-    for (var qi = 0; qi < 6; qi++) cubes.setColorAt(qi, col.setHex(0xFF3B21));
-    if (cubes.instanceColor) cubes.instanceColor.needsUpdate = true;
-    rings[2].add(cubes); S.cubes = cubes;
-    S.cm = new T.Matrix4(); S.cq = new T.Quaternion(); S.ce = new T.Euler();
-    S.cv = new T.Vector3(); S.cs = new T.Vector3(1, 1, 1);
-
-    var spokes = [];
-    for (var ki = 0; ki < 6; ki++) {
-      var ka = (ki / 6) * TAU;
-      spokes.push(Math.cos(ka) * 2.4, Math.sin(ka) * 2.4, 0,
-                  Math.cos(ka) * 2.95, Math.sin(ka) * 2.95, 0);
+    S.body = new T.InstancedMesh(VLT_slabGeometry(T, 1.4, 0.45), bodyMat, VLT_N);
+    S.body.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    S.body.frustumCulled = false;
+    /* slight per-slab tonal variety in the stone, set once, never touched again */
+    for (var b1 = 0; b1 < VLT_N; b1++) {
+      var tone = 0.88 + rnd() * 0.2;
+      S.body.setColorAt(b1, S.col.setRGB(tone, tone, tone * 1.03));
     }
-    var spGeo = new T.BufferGeometry();
-    spGeo.setAttribute("position", new T.Float32BufferAttribute(spokes, 3));
-    rings[2].add(new T.LineSegments(spGeo,
-      new T.LineBasicMaterial({ color: 0xFF3B21, transparent: true, opacity: 0.35 })));
+    S.body.instanceColor.needsUpdate = true;
+    root.add(S.body);
+    S.bodyMat = bodyMat;
 
-    /* phosphor persistence, so the outer ring smears behind itself while it turns */
-    var trail = new Float32Array(240 * 3), rnd = mulberry32(23);
-    for (var ti = 0; ti < 240; ti++) {
-      var ta = (ti / 240) * TAU;
-      trail[ti * 3] = Math.cos(ta) * (5.02 + (rnd() - 0.5) * 0.12);
-      trail[ti * 3 + 1] = Math.sin(ta) * (5.02 + (rnd() - 0.5) * 0.12);
-      trail[ti * 3 + 2] = -0.05;
+    /* the etch overlay: the same page, additive, a hair proud of the faces. Its
+       instanceColor is the per-ring awakening channel, so one mesh can lift one
+       ring's glow at a time without touching the others. */
+    var etchMat = new T.MeshBasicMaterial({
+      map: etchTex, color: VLT_GREEN, transparent: true,
+      blending: T.AdditiveBlending, depthWrite: false
+    });
+    S.etch = new T.InstancedMesh(VLT_slabGeometry(T, 1.412, 0.462), etchMat, VLT_N);
+    S.etch.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    S.etch.frustumCulled = false;
+    S.etch.renderOrder = 4;
+    for (var b2 = 0; b2 < VLT_N; b2++) S.etch.setColorAt(b2, S.col.setRGB(0, 0, 0));
+    S.etch.instanceColor.needsUpdate = true;
+    S.etch.instanceColor.setUsage(T.DynamicDrawUsage);
+    root.add(S.etch);
+
+    /* every slab's edge line, all eighteen merged into ONE LineSegments whose
+       positions are rewritten only while the lock turns */
+    S.edgePos = new Float32Array(VLT_N * 24 * 3);
+    var egeo = new T.BufferGeometry();
+    S.edgeAttr = new T.BufferAttribute(S.edgePos, 3);
+    S.edgeAttr.setUsage(T.DynamicDrawUsage);
+    egeo.setAttribute("position", S.edgeAttr);
+    S.edgeMat = new T.LineBasicMaterial({
+      color: VLT_GREEN, transparent: true, opacity: 0.22, depthWrite: false
+    });
+    var edges = new T.LineSegments(egeo, S.edgeMat);
+    edges.frustumCulled = false;
+    edges.renderOrder = 5;
+    root.add(edges);
+
+    VLT_layout(S, 0);
+    S.lastLock = 0;
+
+    /* ---------------- the beam: where the direction is written ---------------- */
+    var beamTex = VLT_beamTexture(T, R);
+    S.shellMat = new T.MeshBasicMaterial({
+      map: beamTex, color: VLT_GREEN, transparent: true, opacity: 0.05,
+      blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide
+    });
+    S.shell = new T.Mesh(new T.CylinderGeometry(1.0, 1.3, 14, 28, 1, true), S.shellMat);
+    S.shell.position.y = 7;
+    S.shell.renderOrder = 6;
+    root.add(S.shell);
+
+    S.coreMat = new T.MeshBasicMaterial({
+      map: beamTex, color: new T.Color(VLT_GREEN), transparent: true, opacity: 0.3,
+      blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide
+    });
+    S.core = new T.Mesh(new T.CylinderGeometry(0.15, 0.21, 14, 12, 1, true), S.coreMat);
+    S.core.position.y = 7;
+    S.core.renderOrder = 7;
+    root.add(S.core);
+
+    /* motes in the column */
+    S.moteN = small ? 120 : 320;
+    S.moteBase = new Float32Array(S.moteN * 4);
+    S.motePos = new Float32Array(S.moteN * 3);
+    var mrnd = mulberry32(29);
+    for (var mi = 0; mi < S.moteN; mi++) {
+      var mj = mi * 4;
+      S.moteBase[mj] = mrnd() * TAU;               /* angle */
+      S.moteBase[mj + 1] = mrnd() * 12.4;          /* height phase */
+      S.moteBase[mj + 2] = 0.06 + Math.sqrt(mrnd()) * 0.72;   /* radius */
+      S.moteBase[mj + 3] = 2.2 + mrnd() * 4.6;     /* rise per unit t */
     }
-    var trGeo = new T.BufferGeometry();
-    trGeo.setAttribute("position", new T.BufferAttribute(trail, 3));
-    var trailPts = new T.Points(trGeo, new T.PointsMaterial({
-      size: 0.045, sizeAttenuation: true, color: GREEN, transparent: true,
-      opacity: 0.1, blending: T.AdditiveBlending, depthWrite: false
-    }));
-    rings[0].add(trailPts); S.trail = trailPts;
+    var mgeo = new T.BufferGeometry();
+    S.moteAttr = new T.BufferAttribute(S.motePos, 3);
+    S.moteAttr.setUsage(T.DynamicDrawUsage);
+    mgeo.setAttribute("position", S.moteAttr);
+    S.moteMat = new T.PointsMaterial({
+      color: VLT_GREEN, size: 0.07, sizeAttenuation: true, transparent: true,
+      opacity: 0.22, blending: T.AdditiveBlending, depthWrite: false
+    });
+    var motes = new T.Points(mgeo, S.moteMat);
+    motes.frustumCulled = false;
+    motes.renderOrder = 8;
+    root.add(motes);
+    S.lastMoteT = -1;
+    VLT_motes(S, 0);
 
-    /* the index needle: the only thing still moving after the lock */
-    var needle = new T.Line(
-      new T.BufferGeometry().setFromPoints([new T.Vector3(0, 0, 0), new T.Vector3(5.4, 0, 0)]),
-      new T.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.7 }));
-    rig.add(needle); S.needle = needle;
+    /* faint dust in the vault air, desktop only */
+    if (!small) {
+      var dn = 260, dpos = new Float32Array(dn * 3), drnd = mulberry32(31);
+      for (var di = 0; di < dn; di++) {
+        var da = drnd() * TAU, dr = 2 + Math.sqrt(drnd()) * 24;
+        dpos[di * 3] = Math.cos(da) * dr;
+        dpos[di * 3 + 1] = 0.3 + drnd() * 10;
+        dpos[di * 3 + 2] = Math.sin(da) * dr;
+      }
+      var dgeo = new T.BufferGeometry();
+      dgeo.setAttribute("position", new T.BufferAttribute(dpos, 3));
+      S.dust = new T.Points(dgeo, new T.PointsMaterial({
+        color: 0x91A6B4, size: 0.05, sizeAttenuation: true, transparent: true,
+        opacity: 0.05, blending: T.AdditiveBlending, depthWrite: false
+      }));
+      root.add(S.dust);
+    }
 
-    /* the chord that snaps across the assembled dial at the lock */
-    var chord = new T.Line(
-      new T.BufferGeometry().setFromPoints([new T.Vector3(-5.4, 0, 0), new T.Vector3(5.4, 0, 0)]),
-      new T.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0 }));
-    rig.add(chord); S.chord = chord;
+    /* ---------------- light ---------------- */
+    root.add(new T.HemisphereLight(0x8FA6BC, 0x0A0C0E, 0.55));
+    var key = new T.DirectionalLight(0xC8D2DC, 1.15);
+    key.position.set(16, 22, -9);
+    root.add(key);
+    S.lampHigh = new T.PointLight(VLT_GREEN, 6, 44, 2);
+    S.lampHigh.position.set(0, 11.5, 0);
+    root.add(S.lampHigh);
+    S.lampLow = new T.PointLight(VLT_GREEN, 4, 26, 2);
+    S.lampLow.position.set(0, 0.7, 0);
+    root.add(S.lampLow);
 
-    root.add(new T.AmbientLight(0xffffff, 1));
+    /* awakening guard: sentinel forces the first colour pass, including the
+       single reduced-motion frame at restT */
+    S.g0 = -1; S.g1 = -1; S.g2 = -1;
   },
 
+  /* THE CORKSCREW DESCENT. Dead overhead at t=0 (the rings are a carved seal),
+     two hundred degrees of azimuth on the way down, radius swelling to 12.5 and
+     easing back to 7.5, ending low among the inner trio looking up with the
+     beam behind them. Pure t throughout; pointer drift only near the end. The
+     x/z epsilon at t=0 keeps lookAt clear of the straight-down ambiguity. */
   camera: function (ctx) {
-    var c = ctx.camera, t = ctx.t;
-    /* never moves. not once, on any axis, for the whole act. only the lens is scored,
-       and after the lock even that stops. a stopped machine under a still lens. */
-    c.position.set(3.6, 0, 20);
-    c.rotation.set(0, 0, 0);
-    var fov = t < 0.18 ? lerp(34, 31, ease(t / 0.18))
-            : t < 0.42 ? lerp(31, 29.5, ease((t - 0.18) / 0.24))
-            : t < 0.66 ? 29.5
-            : t < 0.86 ? lerp(29.5, 46, ease((t - 0.66) / 0.20))
-            : lerp(46, 42, ease((t - 0.86) / 0.14));
-    if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
+    var c = ctx.camera, t = ctx.t, S = ctx.actState;
+    /* the start altitude must hold ALL eighteen inside the letterboxed frame,
+       slab tops included: outer-ring tops reach radius ~10.73 at height 3.2,
+       the page crops ~12% with cinema bars (vertical), and portrait viewports
+       bind on width instead. 24.8 covers landscape (24.8*0.5095*0.88 > 10.73
+       at the slab-top plane with margin); 21.8/aspect covers portrait. At the
+       rest frame the ease has collapsed this to ~2.28, so the hero shot is
+       untouched by the aspect branch. */
+    var asp = c.aspect || 1.78;
+    var alt0 = 3.2 + Math.max(24.8, 21.8 / asp);
+    var alt = lerp(alt0, 2.2, ease(clamp01(t / 0.88)));
+    var rad = lerp(lerp(0.14, 12.5, ease(clamp01(t / 0.52))),
+                   7.5, ease(clamp01((t - 0.52) / 0.36)));
+    var az = -1.2 + 3.49 * (0.15 * t + 0.85 * ease(clamp01(t / 0.92)));
+    var ly = 5.3 * ease(clamp01((t - 0.50) / 0.38));
+    var drift = ease(clamp01((t - 0.82) / 0.18));
+    c.position.set(
+      Math.cos(az) * rad + ctx.pointer.x * 0.55 * drift,
+      alt - ctx.pointer.y * 0.35 * drift,
+      Math.sin(az) * rad
+    );
+    c.lookAt(S.look.set(0, ly, 0));
+    /* exact compare, not an epsilon: the lens must land on the same number
+       whether t was arrived at cold or scrubbed through. Constant after 0.8,
+       so this stops touching the projection at rest. */
+    var fov = lerp(54, 33, ease(clamp01(t / 0.8)));
+    if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
+
+    /* fog thins at the lock so the lit vault carries to the walls. It lives
+       HERE and not in frame(): setAct() rebuilds the fog at 0.02 on every
+       re-entry, and under reduced motion frame() is latched after one call,
+       so a fog write in frame() left every revisit rendering the post-lock
+       hero state through pre-lock fog. camera() runs every frame in both
+       modes and this is already a pure function of t. */
+    var fog = ctx.scene && ctx.scene.fog;
+    if (fog && fog.density !== undefined) fog.density = lerp(0.02, 0.013, VLT_lockK(t));
   },
 
   frame: function (ctx) {
-    var S = ctx.actState, t = ctx.t, T = ctx.THREE;
-    var col = S.__c || (S.__c = new T.Color());
+    var S = ctx.actState, t = ctx.t;
+    var lockK = VLT_lockK(t);
+    var s0 = VLT_stepK(t, 0), s1 = VLT_stepK(t, 1), s2 = VLT_stepK(t, 2);
 
-    /* the instrument comes to you, passes, and settles at the mouth of its own housing */
-    var rz = t < 0.18 ? lerp(-10.5, -4.2, easeOut(t / 0.18))
-           : t < 0.42 ? lerp(-4.2, -2.8, ease((t - 0.18) / 0.24))
-           : t < 0.66 ? lerp(-2.8, -2.6, (t - 0.42) / 0.24)
-           : t < 0.86 ? lerp(-2.6, 12.6, ease((t - 0.66) / 0.20))
-           : lerp(12.6, 14.8, ease((t - 0.86) / 0.14));
-    S.rig.position.set(lerp(0, 0.4, clamp01(t / 0.9)), 0, rz);
-    S.cage.material.opacity = lerp(0.5, 0.92, ease(clamp01((t - 0.62) / 0.28)));
+    /* THE LOCK: all eighteen rotate into perfect radial alignment at once.
+       Matrices are rewritten only while lockK is actually changing, which is
+       the lock window and nowhere else. Scrubbing back re-jitters them. */
+    if (S.lastLock !== lockK) {
+      S.lastLock = lockK;
+      VLT_layout(S, lockK);
+    }
 
-    /* THE LOCK. three rings that have spent the act on three axes flatten into one plane,
-       their spins converge, the rows reprint in phosphor and the machine stops. */
-    var flat = ease(clamp01((t - 0.66) / 0.10));
-    var locked = t >= 0.76;
-    var spin = locked ? 0.76 : t;
+    /* edge lines snap 0.22 -> 0.9; the etched rows rise to full. Both are
+       single material uniforms. Above 1.0 on the emissive because ACES
+       compresses whites: at 1.75 the rows still read hot, not grey. */
+    S.edgeMat.opacity = lerp(0.22, 0.9, lockK);
+    S.bodyMat.emissiveIntensity = lerp(0.3, 1.75, lockK);
 
-    var active = t < 0.33 ? 0 : t < 0.66 ? 1 : 2;
-    for (var i = 0; i < 3; i++) {
-      var g = S.rings[i], ud = g.userData;
-      g.rotation.x = lerp(ud.tiltX, 0, flat);
-      g.rotation.y = lerp(ud.tiltY, 0, flat);
-      var own = [2.1, -2.8, 3.6][i];
-      g.rotation.z = lerp(spin * own, spin * 2.1, flat);
-
-      var on = locked || i === active;
-      ud.bezel.material.opacity = on ? 0.55 : 0.12;
-      for (var b = 0; b < ud.batches.length; b++) {
-        var im = ud.batches[b], m = im.material;
-        var wantLit = on;
-        if (m.map !== (wantLit ? im.userData.lit : im.userData.dim)) {
-          m.map = wantLit ? im.userData.lit : im.userData.dim;
-          m.needsUpdate = true;
-        }
-        m.opacity = locked ? 1 : (on ? 0.95 : 0.15);
+    /* per-ring awakening: the overlay's instanceColor lifts one ring at a time
+       as the camera spirals past it, then the lock takes all three to full.
+       Uploaded only on frames where a level actually moved, and the compare is
+       EXACT: an epsilon here left a swept arrival a fraction dimmer than the
+       same t reached cold, which breaks the pure-function-of-t law. Outside
+       the step and lock windows these are constants, so nothing uploads. */
+    var g0 = 0.34 * s0 + 1.15 * lockK;
+    var g1 = 0.34 * s1 + 1.15 * lockK;
+    var g2 = 0.34 * s2 + 1.15 * lockK;
+    if (g0 !== S.g0 || g1 !== S.g1 || g2 !== S.g2) {
+      S.g0 = g0; S.g1 = g1; S.g2 = g2;
+      for (var i = 0; i < VLT_N; i++) {
+        var g = S.ringOf[i] === 0 ? g0 : S.ringOf[i] === 1 ? g1 : g2;
+        S.etch.setColorAt(i, S.col.setRGB(g, g, g));
       }
+      S.etch.instanceColor.needsUpdate = true;
     }
 
-    /* eighteen plates seat one at a time, then snap parallel at the lock */
-    var snap = ease(clamp01((t - 0.76) / 0.05));
-    for (var k = 0; k < 18; k++) {
-      var seatAt = 0.10 + ((k + 1) / 18) * 0.46;
-      var seat = clamp01((t - (seatAt - 0.03)) / 0.03);
-      var sx = lerp(0.06, 1, ease(seat));
-      S.pv.set(0, -1.7 + (k / 17) * 3.4, 0);
-      S.pe.set(0, lerp(k * 8 * Math.PI / 180, 0, snap), 0);
-      S.ps.set(sx, 1, 1);
-      S.pm.compose(S.pv, S.pq.setFromEuler(S.pe), S.ps);
-      S.plates.setMatrixAt(k, S.pm);
-      var lit = seat > 0.99;
-      S.plates.setColorAt(k, col.setHex(lit ? 0x7BE38A : 0x3A424A));
-    }
-    S.plates.instanceMatrix.needsUpdate = true;
-    if (S.plates.instanceColor) S.plates.instanceColor.needsUpdate = true;
+    /* the floor circles light as their ring wakes, and blaze at the lock */
+    S.ringLightMats[0].opacity = Math.min(0.92, 0.04 + 0.30 * s0 + 0.55 * lockK);
+    S.ringLightMats[1].opacity = Math.min(0.92, 0.04 + 0.30 * s1 + 0.55 * lockK);
+    S.ringLightMats[2].opacity = Math.min(0.92, 0.04 + 0.30 * s2 + 0.55 * lockK);
 
-    /* the three tiers light one after another beneath the stack */
-    for (var c2 = 0; c2 < 96; c2++) {
-      var tier = Math.floor(c2 / 32);
-      S.collars.setColorAt(c2, col.setHex(tier <= active ? 0x7BE38A : 0x9AA6B2));
-    }
-    if (S.collars.instanceColor) S.collars.instanceColor.needsUpdate = true;
+    /* the beam: a faint thread through the descent, a hot column after the
+       vault decides. The core is driven past 1.0 for ACES the same way. */
+    var bs = lerp(0.34, 1, lockK);
+    S.shell.scale.x = bs; S.shell.scale.z = bs;
+    S.shellMat.opacity = 0.05 + 0.03 * s2 + 0.5 * lockK;
+    S.coreMat.opacity = Math.min(1, 0.3 + 0.06 * (s0 + s1 + s2) + 0.55 * lockK);
+    var hot = 1 + 1.6 * lockK;
+    S.coreMat.color.setRGB(VLT_GR * hot, VLT_GG * hot, VLT_GB * hot);
 
-    /* refusal cools once the instrument takes over */
-    for (var q2 = 0; q2 < 6; q2++) {
-      var qa = (q2 / 6) * TAU;
-      S.cv.set(Math.cos(qa) * 2.4, Math.sin(qa) * 2.4, 0);
-      S.ce.set(t * 4.2, t * 4.2, 0);
-      S.cm.compose(S.cv, S.cq.setFromEuler(S.ce), S.cs);
-      S.cubes.setMatrixAt(q2, S.cm);
-      S.cubes.setColorAt(q2, col.setHex(active === 2 ? 0xFF3B21 : 0x5A1A10));
-    }
-    S.cubes.instanceMatrix.needsUpdate = true;
-    if (S.cubes.instanceColor) S.cubes.instanceColor.needsUpdate = true;
+    S.lampHigh.intensity = 5 + 4 * s0 + 5 * s1 + 6 * s2 + 130 * lockK;
+    S.lampLow.intensity = 3 + 2 * (s0 + s1 + s2) + 60 * lockK;
 
-    S.trail.material.opacity = locked ? 0.05 : (active === 0 ? 0.42 : 0.1);
-    S.needle.rotation.z = -t * TAU * 1.5;
-    S.chord.material.opacity = Math.pow(clamp01(1 - Math.abs(t - 0.76) / 0.045), 2);
-    S.chord.rotation.z = spin * 2.1;
+    /* after the lock, stillness: only the air moves, and only with t.
+       (the fog write lives in camera(), which survives the reduced-motion
+       frame() latch across act re-entries) */
+    S.moteMat.opacity = 0.22 + 0.5 * lockK;
+    if (S.lastMoteT !== t) {
+      S.lastMoteT = t;
+      VLT_motes(S, t);
+    }
+    if (S.dust) S.dust.rotation.y = t * 0.18;
   }
 };
 
@@ -2997,7 +3223,7 @@ export const actRecord = { id: "record", accent: null, dom: true };
  * Camera: a lateral truck across a plan sheet. Scale: a city from altitude.
  * ========================================================================== */
 export const actLedger = {
-  id: "ledger", accent: "#B82A14", bg: 0xDDE0E4, ortho: true, restT: 0.72,
+  id: "ledger", accent: "#B82A14", bg: 0xDDE0E4, ortho: true, restT: 0.72, noGrade: true,
   fog: function (T) { return new T.Fog(0xDDE0E4, 90, 340); },
 
   build: function (ctx) {
@@ -3562,6 +3788,11 @@ export const actCommission = {
     carriage.castShadow = false;
     root.add(carriage);
     S.carriage = carriage; S.lensMat = lensMat;
+    /* The hardware sits at z 5.5, between the camera and the slab, so at the close framings
+       the lens cylinder floats in the foreground as a huge pale blob. The client saw exactly
+       that. The DEVICE stays (frame() still drives carriage x and lens colour, and the light
+       still rakes), but the visible hardware goes: the act is about the object, not the rig. */
+    rail.visible = false; stops.visible = false; carriage.visible = false;
 
     /* dust inside the beam, travelling with the beam. one draw, zero per-frame
        vertex work: the whole column is parented and the parent tracks the lamp. */

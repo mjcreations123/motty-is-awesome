@@ -16,6 +16,7 @@
   --pale:#DDE0E4;
   --pale-ink:#0E0F12;  /* 14.5:1 on pale */
   --edge:clamp(16px,3.4vw,52px);
+  --barH:clamp(36px,5.5vh,58px);   /* the letterbox: the frame the film plays inside */
 
   --display:"Clash Display","Helvetica Neue",system-ui,sans-serif;
   --body-f:"Switzer",system-ui,-apple-system,sans-serif;
@@ -58,43 +59,51 @@ html.world-on body::before{opacity:0}
 .vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
   background:radial-gradient(112% 86% at 50% 48%,transparent 44%,rgba(4,5,7,.66) 100%);
   transition:opacity .5s ease}
+/* film grain, not scanlines. the tile is drawn at runtime in site.js; the scanline
+   gradient it replaces read as a cheap CRT filter and was the first thing the eye
+   called fake. grain stays on the light worlds too: stock is stock. */
 .scan{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.05;
-  background:repeating-linear-gradient(0deg,rgba(233,235,239,.9) 0 1px,transparent 1px 4px);
-  transition:opacity .5s ease}
+  background-repeat:repeat;background-size:132px 132px;mix-blend-mode:overlay}
 html.is-paper .vignette,html.is-pale .vignette{opacity:0}
-html.is-paper .scan,html.is-pale .scan{opacity:0}
+html.is-paper .scan,html.is-pale .scan{opacity:.035}
 
-/* ---------- the instrument chrome ---------- */
+/* ---------- the letterbox and the splice ---------- */
+.lbar{position:fixed;left:0;right:0;height:var(--barH);background:#050607;z-index:14;
+  pointer-events:none}
+.lbar--t{top:0;transform-origin:50% 0}
+.lbar--b{bottom:0;transform-origin:50% 100%}
+
+/* the chapter card: holds the black between worlds. it wears the accent of the act
+   it announces, set inline by the scroll driver. */
+.cut{position:fixed;inset:0;z-index:16;pointer-events:none;opacity:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.cut__num{font-family:var(--display);font-weight:600;line-height:.9;
+  font-size:clamp(110px,19vw,240px);letter-spacing:-.03em;color:var(--accent)}
+.cut__rule{width:58px;height:1px;background:var(--accent)}
+.cut__name{font-family:var(--mono);font-size:11px;letter-spacing:.4em;
+  text-transform:uppercase;color:var(--bone);padding-left:.4em}
+/* a splice out of a light world happens over paper, not black, so the card's name
+   switches ink with the ground it is actually sitting on */
+html.is-paperworld .cut__name,html.is-pale .cut__name{color:#14161A}
+
+/* ---------- the chrome lives INSIDE the letterbox ----------
+   Four small readings in the bars, nothing floating over the picture. The bars are
+   always the same near-black, so the chrome never needs a light-world variant, a
+   plate, or a text shadow: it is projectionist's ink on the frame, on every act. */
 .hud{position:fixed;inset:0;z-index:20;pointer-events:none;
   font-family:var(--mono);font-size:10.5px;font-weight:400;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--ash);
-  transition:color .4s ease}
-.hud > span{position:absolute;text-shadow:0 0 14px rgba(8,9,11,.96),0 0 5px rgba(8,9,11,.9)}
+  text-transform:uppercase;color:var(--ash)}
+.hud > span{position:absolute;height:var(--barH);display:flex;align-items:center}
 .hud i{color:var(--steel-txt);font-style:normal;padding:0 .3em}
-.hud b{font-weight:500;color:var(--bone);transition:color .4s ease}
-.hud-tl{top:var(--edge);left:var(--edge);color:var(--bone)}
-.hud-tr{top:var(--edge);right:var(--edge)}
-.hud-bl{bottom:var(--edge);left:var(--edge)}
-.hud-br{bottom:var(--edge);right:var(--edge)}
-.hud-bc{left:50%;bottom:var(--edge);transform:translateX(-50%);white-space:nowrap}
+.hud b{font-weight:500;color:var(--bone)}
+.hud-tl{top:0;left:var(--edge);color:var(--bone)}
+.hud-tr{top:0;right:var(--edge)}
+.hud-bl{bottom:0;left:var(--edge)}
+.hud-bl b{margin-right:.7em}
+.hud-br{bottom:0;right:var(--edge)}
+/* flex strips the whitespace text node between the label and the number */
+.hud-br b{margin-left:.7em}
 html.has-refused .hud-br b{color:var(--accent)}
-.hud-bc b{color:var(--accent)}
-
-/* the chrome inverts wholesale for the two light worlds */
-html.is-paper .hud,html.is-pale .hud{color:#4A5058}
-html.is-paper .hud > span,html.is-pale .hud > span{text-shadow:0 0 12px rgba(237,235,230,.9)}
-html.is-paper .hud b,html.is-pale .hud b{color:#14161A}
-html.is-paper .hud i,html.is-pale .hud i{color:#6B7078}
-html.is-paper .hud-tl,html.is-pale .hud-tl{color:#14161A}
-
-/* the pip rail keeps the colour of every act visited, so it becomes a record of the trip */
-.rail{top:50%;right:calc(var(--edge) - 4px);transform:translateY(-50%);
-  display:flex;flex-direction:column;gap:9px}
-.pip{display:block;width:7px;height:7px;background:rgba(233,235,239,.2);
-  transition:background .4s ease,transform .3s ease,box-shadow .3s ease}
-.pip.is-now{transform:scale(1.7)}
-.pip.is-on{box-shadow:0 0 10px 1px rgba(0,0,0,.4)}
-html.is-paper .pip,html.is-pale .pip{background:rgba(20,22,26,.22)}
 
 /* ---------- type ---------- */
 .lede{font-family:var(--mono);font-size:10.5px;font-weight:400;letter-spacing:.16em;
@@ -106,7 +115,7 @@ html.is-paper .pip,html.is-pale .pip{background:rgba(20,22,26,.22)}
 .act h1,.act h2{font-family:var(--display);font-weight:600;line-height:1.03;
   letter-spacing:-.022em;color:var(--bone);text-wrap:balance;
   font-size:clamp(30px,4.1vw,56px);margin-top:clamp(18px,2.4vw,26px)}
-.title{font-size:clamp(38px,6.6vw,96px);line-height:.98;letter-spacing:-.03em;
+.title{font-size:clamp(48px,8vw,124px);line-height:.94;letter-spacing:-.035em;
   text-transform:lowercase}
 .hollow{-webkit-text-stroke:1.6px var(--bone);color:transparent}
 @supports not ((-webkit-text-stroke:1px #000)){ .hollow{color:var(--bone)} }

@@ -14,7 +14,7 @@
 .h380{min-height:380vh} .h400{min-height:400vh} .h440{min-height:440vh}
 
 .act__pin{position:sticky;top:0;height:100svh;display:flex;align-items:center;
-  padding:0 var(--edge)}
+  padding:calc(var(--barH) + 1vh) var(--edge)}
 .act__copy{position:relative;z-index:1;width:min(100%,545px);pointer-events:auto}
 .act--right .act__copy{margin-left:auto}
 
@@ -84,13 +84,6 @@ html.is-paperworld .act--right .act__copy::before{
 html.is-paperworld .act h2{color:#14161A}
 html.is-paperworld .say{color:#3A3730}
 html.is-paperworld .lede{color:#5C574C}
-html.is-paperworld .hud{color:#4A4438}
-/* the archive wall is busy and bright, so the telemetry gets a real plate to sit on */
-html.is-paperworld .hud > span:not(.rail){text-shadow:none;background:rgba(231,228,221,.86);
-  padding:4px 8px;margin:-4px -8px;border-radius:1px}
-html.is-paperworld .hud b,html.is-paperworld .hud-tl{color:#14161A}
-html.is-paperworld .hud i{color:#6E685C}
-html.is-paperworld .pip{background:rgba(20,22,26,.22)}
 html.is-paperworld .sub-rail i{background:rgba(20,22,26,.2)}
 html.is-paperworld .vignette,html.is-paperworld .scan{opacity:0}
 
@@ -191,36 +184,58 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
   background:repeating-linear-gradient(0deg,
     var(--ash) 0 1.05em,transparent 1.05em 1.62em);opacity:.8}
 
-/* ---------------- ACT 09: the price ---------------- */
-.price{margin-top:clamp(20px,2.6vw,30px);border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);padding:clamp(16px,2.2vw,24px) 0}
-.price__stage{position:relative;min-height:1.02em}
-.amount{font-family:var(--display);font-weight:600;letter-spacing:-.035em;line-height:.92;
-  font-size:clamp(44px,6.6vw,86px);color:var(--bone)}
-.amount .cur{font-size:.44em;vertical-align:.62em;margin-right:.06em;color:var(--steel)}
-.price__reveal{display:none}
-.price.flipped .amount{display:none}
-.price.flipped .price__reveal{display:block}
-.rc-big{font-family:var(--display);font-weight:600;letter-spacing:-.03em;line-height:.96;
-  font-size:clamp(40px,6vw,76px);color:var(--accent)}
-.rc-sub{margin-top:14px;max-width:42ch;color:var(--bone);
-  font-size:clamp(15.5px,1.2vw,17.5px);line-height:1.55}
+/* ---------------- ACT 09: the purchase ----------------
+   It has to LOOK like buying something, because the joke is a checkout that
+   recalculates to zero. Receipt bones: an order summary, dotted leaders, a
+   tabular total, one wide button. No fields, nothing collected, ever. */
+.order{margin-top:clamp(18px,2.4vw,28px);width:min(100%,460px);
+  border:1px solid rgba(233,235,239,.18);background:rgba(10,11,14,.85);
+  padding:clamp(18px,2.4vw,26px);font-family:var(--mono);letter-spacing:.05em;
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.order__head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--ash);
+  padding-bottom:12px;border-bottom:1px solid rgba(233,235,239,.18)}
+.order__head i{font-style:normal;letter-spacing:.14em;color:var(--steel-txt)}
+.order__row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:9px 0;border-bottom:1px dashed rgba(233,235,239,.14);
+  font-size:12px;text-transform:uppercase;color:var(--bone)}
+.order__row b{font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.order__row.o-sub{font-size:10.5px;color:var(--ash)}
+.order__row.o-sub b{color:var(--ash)}
+.order__total{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+  padding:14px 0 4px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bone)}
+.order__total > b{font-weight:500;font-variant-numeric:tabular-nums}
+.order__total .t-was{font-family:var(--display);font-size:26px;letter-spacing:-.02em;
+  color:var(--accent)}
+.order__total .t-now{display:none;font-family:var(--display);font-size:26px;
+  letter-spacing:-.02em;color:var(--accent)}
+.order.flipped .o-price,.order.flipped .t-was{text-decoration:line-through;
+  text-decoration-thickness:2px;color:var(--steel-txt);font-size:inherit;font-family:var(--mono)}
+.order.flipped .t-was{font-size:12px;margin-right:10px}
+.order.flipped .t-now{display:inline}
+.order__reveal{max-height:0;overflow:hidden}
+.order.flipped .order__reveal{max-height:340px;padding-top:14px}
 @media (prefers-reduced-motion:no-preference){
-  .price.flipped .price__reveal{animation:flip .22s cubic-bezier(.2,.8,.3,1) both}
-  @keyframes flip{from{opacity:0;transform:rotateX(-70deg);transform-origin:top}
-                  to{opacity:1;transform:none}}
+  .order__reveal{transition:max-height .55s cubic-bezier(.2,.8,.3,1),padding .55s ease}
 }
-
-.buyrow{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;margin-top:clamp(20px,3vw,30px)}
-.buy{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.16em;
-  text-transform:uppercase;cursor:pointer;color:var(--bone);background:transparent;
-  border:1px solid var(--steel);border-radius:0;padding:15px 26px;
-  transition:color .18s ease,background-color .18s ease,border-color .18s ease}
-.buy:hover{background:var(--accent);border-color:var(--accent);color:var(--ink)}
+.rc-big{font-family:var(--display);font-weight:600;letter-spacing:-.03em;line-height:.96;
+  font-size:clamp(34px,4.6vw,58px);color:var(--accent)}
+.rc-sub{margin-top:10px;max-width:42ch;color:var(--bone);text-transform:none;
+  letter-spacing:0;font-family:var(--body-f);font-size:clamp(15px,1.15vw,16.5px);line-height:1.55}
+.buy{display:block;width:100%;margin-top:16px;padding:16px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.26em;
+  text-transform:uppercase;color:var(--ink);background:var(--accent);
+  border:1px solid var(--accent);border-radius:0;
+  transition:filter .18s ease,opacity .18s ease}
+.buy:hover{filter:brightness(1.12)}
 .buy:active{transform:translateY(1px)}
-.buyrow .fine{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--steel-txt)}
-.buyrow .fine i{font-style:normal;padding:0 .3em}
+.buy[disabled]{cursor:default;opacity:.9}
+html:not(.js) .buy{display:none}   /* a button that cannot act does not get drawn */
+.order.processing .buy{animation:buypulse .5s ease-in-out infinite alternate}
+@keyframes buypulse{from{opacity:.55}to{opacity:.95}}
+.order .fine{display:block;margin-top:10px;text-align:center;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--steel-txt)}
+.order .fine i{font-style:normal;padding:0 .3em}
 
 .sign{margin-top:clamp(20px,2.6vw,32px);font-family:var(--display);font-weight:600;
   letter-spacing:-.03em;line-height:.98;font-size:clamp(26px,3.4vw,44px);color:var(--bone);
@@ -249,8 +264,6 @@ html.form-only .record .say::before{content:"";position:absolute;inset:.2em 0 .2
     inset:-24% -32% -24% -32%;
     background:radial-gradient(78% 62% at 50% 50%,rgba(231,228,221,1) 0%,rgba(231,228,221,.99) 52%,
       rgba(231,228,221,.9) 74%,rgba(231,228,221,0) 100%)}
-  .rail{display:none}
-  .hud-bc{display:none}
   .hud{font-size:9.5px;letter-spacing:.08em}
   .registry-wrap{grid-template-columns:1fr}
   .tier-block:first-child{grid-column:auto}
@@ -269,7 +282,6 @@ html.world-on .cue--act{display:inline-flex}
 @media (max-width:520px){
   .act h1,.act h2{font-size:clamp(27px,7.4vw,38px)}
   .title,.record .pull{font-size:clamp(32px,9.6vw,48px)}
-  .amount{font-size:clamp(46px,15vw,80px)}
   .rc-big{font-size:clamp(40px,13vw,68px)}
   .buy{width:100%;text-align:center}
 }
@@ -282,88 +294,3 @@ html.world-on .cue--act{display:inline-flex}
   .h380,.h400,.h440{min-height:100svh}
   .registry li::after{transform:scaleX(1)}
 }
-
-
-/* ================================================================
-   TELEMETRY
-   Real values read off the live renderer every frame, printed like a
-   3D tool left open. Nothing here is decorative: the numbers move
-   because the camera moves.
-   ================================================================ */
-.telem{position:fixed;right:calc(var(--edge) - 2px);top:50%;transform:translateY(-50%);
-  z-index:20;pointer-events:none;display:grid;gap:3px 0;justify-items:end;
-  font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--steel-txt);transition:color .4s ease}
-.telem-t{opacity:.72}
-.telem-t i{font-style:normal;color:var(--accent)}
-.telem-r{display:flex;gap:7px;margin-bottom:7px}
-.telem-r b{font-weight:400;color:var(--bone);font-variant-numeric:tabular-nums;
-  transition:color .4s ease}
-.telem-bar{display:block;width:58px;height:2px;background:rgba(233,235,239,.16);margin-top:3px}
-.telem-bar i{display:block;height:100%;width:0;background:var(--accent);
-  transform-origin:left}
-html.is-pale .telem,html.is-paperworld .telem{color:#6E685C}
-html.is-pale .telem-r b,html.is-paperworld .telem-r b{color:#14161A}
-html.is-pale .telem-bar,html.is-paperworld .telem-bar{background:rgba(20,22,26,.16)}
-/* the pip rail moves up so the two instrument blocks never collide */
-.rail{top:auto;bottom:calc(var(--edge) + 26px);transform:none}
-@media (max-width:1100px){ .telem{display:none} }
-
-/* ================================================================
-   FROM alche.studio, the parts that are not its intro:
-   a measured edge with a section label, a live axis gizmo reading the
-   real camera orientation, and mono tag pills under the copy.
-   Everything here shows actual state. None of it is decoration.
-   ================================================================ */
-.draft{position:fixed;inset:0;z-index:4;pointer-events:none;
-  --draft-ink:rgba(233,235,239,.16)}
-html.is-pale .draft,html.is-paperworld .draft{--draft-ink:rgba(20,22,26,.2)}
-.draft-scale{position:absolute;left:calc(var(--edge) - 14px);top:16vh;bottom:16vh;width:9px;
-  border-left:1px solid var(--draft-ink);
-  background:repeating-linear-gradient(180deg,var(--draft-ink) 0 1px,transparent 1px 22px)}
-.draft-scale i{position:absolute;left:-1px;width:3px;top:0;height:0;
-  background:var(--accent);transition:height .12s linear}
-.draft-label{position:absolute;left:calc(var(--edge) - 14px);top:calc(16vh - 20px);
-  font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--steel-txt)}
-html.is-pale .draft-label,html.is-paperworld .draft-label{color:#6E685C}
-
-.gizmo{position:fixed;right:calc(var(--edge) - 4px);top:calc(var(--edge) + 34px);
-  z-index:20;pointer-events:none;width:84px;text-align:center}
-.gizmo svg{width:84px;height:84px;overflow:visible}
-.gizmo line{stroke-width:1.6}
-#gz-lx{stroke:#FF5A47}#gz-ly{stroke:#63D68A}#gz-lz{stroke:#5AA8FF}
-.gz-x{fill:#FF5A47}.gz-y{fill:#63D68A}.gz-z{fill:#5AA8FF}
-.gz-ring{fill:none;stroke:var(--draft-ink);stroke-width:1}
-.gizmo-cap{display:block;margin-top:2px;font-family:var(--mono);font-size:8.5px;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--steel-txt)}
-.gizmo-cap i{font-style:normal;color:var(--accent)}
-html.is-pale .gizmo-cap,html.is-paperworld .gizmo-cap{color:#6E685C}
-
-.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:clamp(16px,2vw,22px)}
-.tags span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
-  padding:5px 9px;border:1px solid var(--steel);color:var(--ash);border-radius:2px}
-html.is-pale .tags span,html.is-paperworld .tags span{border-color:rgba(20,22,26,.28);color:#4A4438}
-
-@media (max-width:1100px){ .gizmo{display:none} }
-@media (max-width:860px){ .draft-scale,.draft-label{display:none} }
-
-/* every world behind these is busy, so the instrument blocks get a real plate rather
-   than relying on a text shadow that a bright wireframe wall defeats */
-.telem,.gizmo{background:rgba(8,9,11,.72);padding:9px 11px;border-radius:2px;
-  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
-.telem{border:1px solid rgba(233,235,239,.09)}
-.gizmo{border:1px solid rgba(233,235,239,.09)}
-.draft-label{background:rgba(8,9,11,.72);padding:2px 5px;border-radius:2px}
-html.is-pale .telem,html.is-pale .gizmo,html.is-pale .draft-label,
-html.is-paperworld .telem,html.is-paperworld .gizmo,html.is-paperworld .draft-label{
-  background:rgba(231,228,221,.82);border-color:rgba(20,22,26,.12)}
-
-/* If three.js never lands there is no renderer, so the two blocks that read the renderer
-   have nothing to report. They go, rather than printing zeros as though a zero were a
-   measurement. The measured edge stays, because it reads document scroll, which is real
-   with or without a world. Showing only real state is the whole reason this borrow was
-   defensible in the first place. */
-.telem,.gizmo{display:none}
-html.world-on .telem{display:grid}
-html.world-on .gizmo{display:block}
-@media (max-width:1100px){ html.world-on .telem,html.world-on .gizmo{display:none} }

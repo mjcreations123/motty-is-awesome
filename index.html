@@ -14,8 +14,8 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=38">
-<link rel="stylesheet" href="css/acts.css?v=38">
+<link rel="stylesheet" href="css/site.css?v=40">
+<link rel="stylesheet" href="css/acts.css?v=40">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
@@ -27,10 +27,14 @@
 <div class="vignette" aria-hidden="true"></div>
 <div class="scan" aria-hidden="true"></div>
 
-<!-- the measured edge and the live axis gizmo, both read off the running renderer -->
-<div class="draft" aria-hidden="true">
-  <span class="draft-scale"><i id="scale-fill"></i></span>
-  <span class="draft-label" id="scale-label">01</span>
+<!-- cinema. the page is cut like a film: letterbox bars carry the chrome, and every
+     act change is a splice with a chapter card in the black. -->
+<div class="lbar lbar--t" aria-hidden="true"></div>
+<div class="lbar lbar--b" aria-hidden="true"></div>
+<div class="cut" id="cut" aria-hidden="true">
+  <span class="cut__num" id="cut-num">01</span>
+  <span class="cut__rule"></span>
+  <span class="cut__name" id="cut-name">the default room</span>
 </div>
 
 <div class="hud" aria-hidden="true">
@@ -38,32 +42,6 @@
   <span class="hud-tr">design dna <i>/</i> no two alike</span>
   <span class="hud-bl"><b id="hud-sect">01</b> <span id="hud-name">the default room</span></span>
   <span class="hud-br">refused <b id="hud-count">000</b></span>
-  <span class="hud-bc">state<i>:</i> <b id="hud-state">undecided</b></span>
-  <span class="rail" id="pips"></span>
-</div>
-
-<!-- the instrument shows its own working: real values, read off the live renderer -->
-<div class="gizmo" id="gizmo" aria-hidden="true">
-  <svg viewBox="0 0 84 84">
-    <circle class="gz-ring" cx="42" cy="42" r="33"></circle>
-    <line id="gz-lx" x1="42" y1="42" x2="70" y2="42"></line>
-    <line id="gz-ly" x1="42" y1="42" x2="42" y2="14"></line>
-    <line id="gz-lz" x1="42" y1="42" x2="42" y2="42"></line>
-    <circle id="gz-cx" class="gz-x" cx="70" cy="42" r="4"></circle>
-    <circle id="gz-cy" class="gz-y" cx="42" cy="14" r="4"></circle>
-    <circle id="gz-cz" class="gz-z" cx="42" cy="42" r="4"></circle>
-  </svg>
-  <span class="gizmo-cap">world axes <i id="gz-mode">persp</i></span>
-</div>
-
-<div class="telem" id="telem" aria-hidden="true">
-  <span class="telem-t">camera</span>
-  <span class="telem-r"><b id="t-x">0.00</b><b id="t-y">0.00</b><b id="t-z">0.00</b></span>
-  <span class="telem-t" id="t-lensLabel">fov</span>
-  <span class="telem-r"><b id="t-lens">0.0</b></span>
-  <span class="telem-t">act <i id="t-act">01</i> progress</span>
-  <span class="telem-r"><b id="t-p">0.000</b></span>
-  <span class="telem-bar"><i id="t-fill"></i></span>
 </div>
 
 <main>
@@ -74,24 +52,19 @@
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.34">
           <p class="lede">what this is</p>
-          <p class="tags">
-            <span>the_problem</span>
-            <span>convergence</span>
-            <span>defaults</span>
-          </p>
           <h1 class="title"><span class="hollow">motty</span> is <span class="hollow">awesome</span></h1>
-          <p class="say">This page is a demonstration of design dna, a skill I built for Claude. Its job is to stop it building the website it builds for everybody else. You are standing in that website right now.</p>
+          <p class="say">Every AI designs the same website. I built design dna, the skill that refuses it. This page is that skill running. Keep scrolling and watch it take the average apart.</p>
           <p class="cue"><i class="blip"></i>scroll to begin</p>
         </div>
         <div class="sub" data-from="0.34" data-to="0.66">
-          <p class="lede">01 <i>/</i> the problem</p>
+          <p class="lede">01 <i>/</i> the average</p>
           <h2>The average is not a style anyone picked.</h2>
           <p class="say">A hero, three cards, a call to action, a footer rule. It is the middle of everything a model was trained on, so it arrives by reflex, and it arrives identical for every client who asks.</p>
         </div>
         <div class="sub" data-from="0.66" data-to="1.01">
-          <p class="lede">01 <i>/</i> the problem</p>
+          <p class="lede">01 <i>/</i> the diagnosis</p>
           <h2>Nothing in this room was chosen.</h2>
-          <p class="say">That is the actual failure. A default is not a mistake, it is a decision nobody made, shipped to a client with their name on it. Everything after this is the skill refusing to let that happen.</p>
+          <p class="say">A default is not a mistake. It is a decision nobody made, shipped with your name on it. Everything from here is the skill refusing to let that happen.</p>
         </div>
       </div>
     </div>
@@ -103,20 +76,14 @@
     <div class="act__pin">
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.34">
-          <p class="lede">02 <i>/</i> what it does first</p>
-          <p class="tags">
-            <span>registry</span>
-            <span>absolute</span>
-            <span>hard</span>
-            <span>off</span>
-          </p>
+          <p class="lede">02 <i>/</i> the registry</p>
           <h2>It refuses before it designs.</h2>
-          <p class="say">The skill carries a written registry of every signal that reads as machine made, and checks the work against all of it before a line of code exists. This wall is that registry. It only ever grows.</p>
+          <p class="say">The skill keeps a written registry of every signal that reads as machine made, and checks the work against all of it before one line of code exists. This wall is that registry. It only grows.</p>
         </div>
         <div class="sub" data-from="0.34" data-to="0.68">
-          <p class="lede">02 <i>/</i> why the black bars</p>
-          <h2>Most of it is closed on purpose.</h2>
-          <p class="say">A few cards are open because those tells are already common knowledge. The rest stay shut for one reason: a list you can read is a list you can design around, and the worth of this is in the enforcing, not in the knowing. Ask for the skill and you get every card.</p>
+          <p class="lede">02 <i>/</i> the black bars</p>
+          <h2>Most of it is sealed on purpose.</h2>
+          <p class="say">A few cards are open because those tells are common knowledge. The rest stay shut, because a list you can read is a list you can design around. The worth is in the enforcing, not the knowing.</p>
         </div>
         <div class="sub" data-from="0.68" data-to="1.01">
           <p class="lede">02 <i>/</i> three tiers</p>
@@ -132,23 +99,19 @@
     <div class="act__pin">
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.34">
-          <p class="lede">03 <i>/</i> why this happens</p>
-          <p class="tags">
-            <span>why_models_converge</span>
-            <span>plain_is_also_a_fail</span>
-          </p>
-          <h2>A model is built to give the likeliest answer.</h2>
-          <p class="say">And the likeliest website is the average of every website it was shown. That is not a fault in the model, it is the model working correctly. It is simply useless if you wanted something of your own.</p>
+          <p class="lede">03 <i>/</i> why it happens</p>
+          <h2>A model gives the likeliest answer.</h2>
+          <p class="say">And the likeliest website is the average of every website it has ever seen. That is not the model failing. That is the model working, and it is why this factory never stops.</p>
         </div>
         <div class="sub" data-from="0.34" data-to="0.68">
-          <p class="lede">03 <i>/</i> the second trap</p>
+          <p class="lede">03 <i>/</i> the trap</p>
           <h2>Removing the tells is not enough.</h2>
-          <p class="say">Strip them all out and you are left with something plain, and plain fails just as badly as generic. Most advice about avoiding the AI look walks straight into that and stops there.</p>
+          <p class="say">Strip every tell and you are left with plain, and plain fails just as hard as generic. Most advice about the AI look stops there. The skill does not.</p>
         </div>
         <div class="sub" data-from="0.68" data-to="1.01">
-          <p class="lede">03 <i>/</i> the second trap</p>
-          <h2>So the skill sets its default to ambitious.</h2>
-          <p class="say">Not safe, not minimal by reflex. Boring is written down as a bug on the same page as the ban list, so the fix for a tell can never be to make the work quieter.</p>
+          <p class="lede">03 <i>/</i> the standard</p>
+          <h2>Boring is filed as a bug.</h2>
+          <p class="say">The skill defaults to ambitious, never to safe by reflex. That rule is written on the same page as the ban list, so the fix for looking generated can never be to make the work quieter.</p>
         </div>
       </div>
     </div>
@@ -160,52 +123,42 @@
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.32">
           <p class="lede">04 <i>/</i> the refusal pass</p>
-          <p class="tags">
-            <span>refusal_pass</span>
-            <span>runs_twice</span>
-            <span>click_to_try</span>
-          </p>
-          <h2>This is what the registry catches.</h2>
-          <p class="say">Every panel here is a page that would otherwise have shipped. The skill runs this pass twice on every build: once before any design starts, and again on the finished work before anyone sees it.</p>
+          <h2>Every panel here almost shipped.</h2>
+          <p class="say">This is the refusal pass, and it runs twice on every build: before any design starts, and again on the finished work before anyone sees it. What the registry names, this destroys.</p>
         </div>
         <div class="sub" data-from="0.32" data-to="0.66">
-          <p class="lede">04 <i>/</i> the refusal pass</p>
-          <h2>Refusing is something you do, not something you have.</h2>
-          <p class="say">A list is worth nothing unless something acts on it every time, without being asked. Try one yourself and it stays refused for as long as you are here.</p>
+          <p class="lede">04 <i>/</i> try it</p>
+          <h2>Refusing is a verb.</h2>
+          <p class="say">A list is worth nothing unless something acts on it every time, unasked. Try one yourself. It stays refused for as long as you are here.</p>
           <p class="cue cue--act"><i class="blip"></i><span class="d">click any panel to refuse it, or press R</span><span class="m">tap any panel to refuse it</span></p>
         </div>
         <div class="sub" data-from="0.66" data-to="1.01">
-          <p class="lede">04 <i>/</i> the refusal pass</p>
-          <h2>Refuse nothing and the defaults ship.</h2>
-          <p class="say">That is not a threat, it is just what happens next. Somebody has to say no to this, in writing, on every build, or the average goes out with your client's name on it.</p>
+          <p class="lede">04 <i>/</i> or else</p>
+          <h2>Refuse nothing and the average ships.</h2>
+          <p class="say">That is not a threat, only what happens next. Somebody has to say no, in writing, on every build. Otherwise this corridor is the deliverable.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ============ 05 THE INSTRUMENT ============ -->
-  <section class="act h380 act--scene act--right" id="a4" data-name="the instrument" data-accent="#7BE38A">
+  <!-- ============ 05 THE VAULT ============ -->
+  <section class="act h380 act--scene act--right" id="a4" data-name="the vault" data-accent="#7BE38A">
     <div class="act__pin">
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.34">
           <p class="lede">05 <i>/</i> the other half</p>
-          <p class="tags">
-            <span>direction.md</span>
-            <span>18_files</span>
-            <span>written_first</span>
-          </p>
           <h2>Refusing is only half of the skill.</h2>
           <p class="say">The other half decides. Before anything is drawn it writes a direction: the concept, the face, the palette, the bones, and the one moment worth building properly. Code is not allowed to start until that document exists.</p>
         </div>
         <div class="sub" data-from="0.34" data-to="0.67">
-          <p class="lede">05 <i>/</i> the other half</p>
+          <p class="lede">05 <i>/</i> the vault</p>
           <h2>Eighteen files. Three tiers. Every axis on the record.</h2>
-          <p class="say">The ground, the face, the bones, the motion, the signature, the voice. Each one is a decision somebody has to make and write down, with a reason, before it can be built.</p>
+          <p class="say">Each slab below is one file of the skill. The ground, the face, the bones, the motion, the signature, the voice. Each one forces a decision somebody has to write down before anything gets built.</p>
         </div>
         <div class="sub" data-from="0.67" data-to="1.01">
-          <p class="lede">05 <i>/</i> the other half</p>
+          <p class="lede">05 <i>/</i> the lock</p>
           <h2>Locking one option refuses all the others.</h2>
-          <p class="say">That is what a decision actually costs, and it is why the written record matters more than any single rule. You can watch the instrument turning. You cannot see what it settled on.</p>
+          <p class="say">That is what a decision actually costs, and it is why the written record matters more than any single rule. The vault stands open to look at and sealed to read. Ask for the skill and every slab is yours.</p>
         </div>
       </div>
     </div>
@@ -217,22 +170,18 @@
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.33">
           <p class="lede">06 <i>/</i> before deciding</p>
-          <p class="tags">
-            <span>reference_study</span>
-            <span>decided_not_default</span>
-          </p>
-          <h2>It goes and looks at real work first.</h2>
-          <p class="say">The skill opens live sites and studies them before it designs anything, because you cannot design from your own taste when your taste is the average. What it takes away is the thinking, never the pixels.</p>
+          <h2>It studies real work first.</h2>
+          <p class="say">Before it designs anything, the skill opens live, award-level sites and reads them, because you cannot design from your own taste when your taste is the average. It takes the thinking, never the pixels.</p>
         </div>
         <div class="sub" data-from="0.33" data-to="0.67">
-          <p class="lede">06 <i>/</i> decided or default</p>
-          <h2>Below the line it is a default. Above it, somebody decided.</h2>
-          <p class="say">Same object, both times. Structure, rhythm, weight and temperature each get named and written down before anything is drawn. That naming is the entire difference you are looking at.</p>
+          <p class="lede">06 <i>/</i> the seam</p>
+          <h2>Below the line, a default. Above it, a decision.</h2>
+          <p class="say">Same slab, both sides. Structure, rhythm, weight and temperature each get named and written down before anything is drawn. That naming is the whole difference you are looking at.</p>
         </div>
         <div class="sub" data-from="0.67" data-to="1.01">
-          <p class="lede">06 <i>/</i> decided or default</p>
-          <h2>A default is somebody else's decision wearing your client's name.</h2>
-          <p class="say">There is no third state. Work is either decided or inherited, and nothing is allowed to ship from underneath the line.</p>
+          <p class="lede">06 <i>/</i> no third state</p>
+          <h2>Work is either decided or inherited.</h2>
+          <p class="say">There is no third state, and nothing ships from under the line. A default is somebody else's decision wearing your name.</p>
           <p class="cue cue--act"><i class="blip"></i><span class="d">drag the line of heat</span><span class="m">tap high or low to move the line</span></p>
         </div>
       </div>
@@ -277,23 +226,18 @@
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.34">
           <p class="lede">08 <i>/</i> the ledger</p>
-          <p class="tags">
-            <span>ledger</span>
-            <span>one_row_per_build</span>
-            <span>never_backfilled</span>
-          </p>
-          <h2>Every finished build gets logged.</h2>
-          <p class="say">Not the work, the axes that make a look: the ground, the face, the bones, the motion, the signature. One row per build, written at the end of it.</p>
+          <h2>Every finished build is logged.</h2>
+          <p class="say">Not the work. The axes that make a look: ground, face, bones, motion, signature. One row per build, written the day it ships.</p>
         </div>
         <div class="sub" data-from="0.34" data-to="0.68">
-          <p class="lede">08 <i>/</i> the ledger</p>
-          <h2>The next build reads it and is barred from that ground.</h2>
-          <p class="say">This is the part that stops a studio developing a house style by accident. Repetition is not discouraged here. It is unavailable, because those axes are already spent.</p>
+          <p class="lede">08 <i>/</i> no house style</p>
+          <h2>The next build is barred from spent ground.</h2>
+          <p class="say">This is what stops a studio growing a house style by accident. Repetition is not discouraged here. It is unavailable.</p>
         </div>
         <div class="sub" data-from="0.68" data-to="1.01">
-          <p class="lede">08 <i>/</i> the ledger</p>
-          <h2>It started empty and it was never backfilled.</h2>
-          <p class="say">Nothing was imported to make the record look deep. A borrowed face is the fastest way to look machine made, and the easiest face to borrow is your own from last time.</p>
+          <p class="lede">08 <i>/</i> empty on purpose</p>
+          <h2>It started empty, and it stays honest.</h2>
+          <p class="say">Nothing was imported to make the record look deep. The easiest face to borrow is your own from last time, and this ledger exists to refuse exactly that.</p>
         </div>
       </div>
     </div>
@@ -305,33 +249,30 @@
       <div class="act__copy">
         <div class="sub" data-from="0" data-to="0.30">
           <p class="lede">09 <i>/</i> the gate</p>
-          <p class="tags">
-            <span>the_gate</span>
-            <span>render_and_measure</span>
-            <span>no_fake_proof</span>
-          </p>
           <h2>Nothing ships unlooked at.</h2>
-          <p class="say">The skill renders the finished page, screenshots it at desktop and phone width, measures every contrast ratio against the floor, and refuses to call anything done from reading the code alone.</p>
+          <p class="say">The skill renders the finished page, screenshots it at desktop and phone width, measures every contrast ratio, and refuses to call anything done from reading code alone.</p>
         </div>
         <div class="sub" data-from="0.30" data-to="0.62">
-          <p class="lede">09 <i>/</i> the gate</p>
+          <p class="lede">09 <i>/</i> the proof</p>
           <h2>And it never fakes the proof.</h2>
-          <p class="say">No invented statistics, no testimonials nobody gave, no client logos that were never clients. An honest gap where a number would go beats a convincing lie, every time.</p>
+          <p class="say">No invented statistics, no testimonials nobody gave, no logos that were never clients. An honest gap beats a convincing lie, every time.</p>
         </div>
         <div class="sub" data-from="0.62" data-to="1.01">
           <p class="lede">09 <i>/</i> the price</p>
-          <div class="price" id="price">
-            <div class="price__stage">
-              <p class="amount"><span class="cur">&#36;</span>10,000</p>
-              <div class="price__reveal" role="status" aria-live="polite">
-                <p class="rc-big">Kidding.</p>
-                <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not have this link.</p>
-              </div>
+          <div class="order" id="price">
+            <p class="order__head"><span>order summary</span><i>a demonstration</i></p>
+            <div class="order__row"><span>design dna, the entire skill</span><b class="o-price">&#36;10,000</b></div>
+            <div class="order__row o-sub"><span>eighteen files, three tiers</span><b>included</b></div>
+            <div class="order__row o-sub"><span>the registry, the ledger, the gate</span><b>included</b></div>
+            <div class="order__row o-sub"><span>delivery</span><b>immediate</b></div>
+            <div class="order__total"><span>total</span>
+              <b><span class="t-was">&#36;10,000</span><span class="t-now">&#36;0.00</span></b></div>
+            <div class="order__reveal" role="status" aria-live="polite">
+              <p class="rc-big">Kidding.</p>
+              <p class="rc-sub">It is free. Ask, and it is yours. You already know who to ask, or you would not have this link.</p>
             </div>
-            <div class="buyrow">
-              <button class="buy" id="buy" type="button" aria-expanded="false">Get the skill</button>
-              <span class="fine">one time <i>/</i> yours to keep</span>
-            </div>
+            <button class="buy" id="buy" type="button" aria-expanded="false">purchase</button>
+            <span class="fine">one time <i>/</i> yours to keep</span>
           </div>
           <p class="sign">motty is <em>awesome</em>.</p>
           <div class="colophon">
@@ -354,6 +295,6 @@
   }
 }
 </script>
-<script src="js/site.js?v=38"></script>
+<script src="js/site.js?v=40"></script>
 </body>
 </html>
