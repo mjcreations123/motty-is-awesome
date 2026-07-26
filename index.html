@@ -14,8 +14,8 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,500&f[]=switzer@400,500&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/site.css?v=40">
-<link rel="stylesheet" href="css/acts.css?v=40">
+<link rel="stylesheet" href="css/site.css?v=41">
+<link rel="stylesheet" href="css/acts.css?v=41">
 <script>document.documentElement.className="js"</script>
 </head>
 <body>
@@ -32,7 +32,7 @@
 <div class="lbar lbar--t" aria-hidden="true"></div>
 <div class="lbar lbar--b" aria-hidden="true"></div>
 <div class="cut" id="cut" aria-hidden="true">
-  <span class="cut__num" id="cut-num">01</span>
+  <span class="cut__win"><span class="cut__roll" id="cut-roll"><b id="cut-prev">01</b><b id="cut-num">01</b></span></span>
   <span class="cut__rule"></span>
   <span class="cut__name" id="cut-name">the default room</span>
 </div>
@@ -196,9 +196,13 @@
         <h2 class="pull"><span class="hollow">every</span> choice made.<br>none of them <span class="hollow">shown.</span></h2>
         <p class="say">The decisions ship with the build. You can see that every one of them was made, and when, and against which rule. You cannot see what any of them were. That is not coyness, it is the product.</p>
 
+        <div class="screen">
+          <span class="screen__lamp" aria-hidden="true"></span>
+          <span class="screen__cone" aria-hidden="true"></span>
+          <div class="screen__frame" id="screen-frame">
         <div class="toggle">
           <input type="checkbox" id="form-toggle">
-          <label for="form-toggle">show the form, not the content</label>
+          <label for="form-toggle">change the slide</label>
         </div>
 
         <dl class="record-list">
@@ -216,6 +220,8 @@
           <div><dt>temperature</dt><dd><span class="bar" role="img" style="--w:12" aria-label="withheld"></span></dd></div>
           <div><dt>voice</dt><dd>set</dd></div>
         </dl>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -247,17 +253,17 @@
   <section class="act h440 act--scene act--right" id="a8" data-name="the commission" data-accent="#E8C77A">
     <div class="act__pin">
       <div class="act__copy">
-        <div class="sub" data-from="0" data-to="0.30">
+        <div class="sub" data-from="0" data-to="0.26">
           <p class="lede">09 <i>/</i> the gate</p>
           <h2>Nothing ships unlooked at.</h2>
           <p class="say">The skill renders the finished page, screenshots it at desktop and phone width, measures every contrast ratio, and refuses to call anything done from reading code alone.</p>
         </div>
-        <div class="sub" data-from="0.30" data-to="0.62">
+        <div class="sub" data-from="0.26" data-to="0.50">
           <p class="lede">09 <i>/</i> the proof</p>
           <h2>And it never fakes the proof.</h2>
           <p class="say">No invented statistics, no testimonials nobody gave, no logos that were never clients. An honest gap beats a convincing lie, every time.</p>
         </div>
-        <div class="sub" data-from="0.62" data-to="1.01">
+        <div class="sub" data-from="0.50" data-to="0.84">
           <p class="lede">09 <i>/</i> the price</p>
           <div class="order" id="price">
             <p class="order__head"><span>order summary</span><i>a demonstration</i></p>
@@ -274,13 +280,17 @@
             <button class="buy" id="buy" type="button" aria-expanded="false">purchase</button>
             <span class="fine">one time <i>/</i> yours to keep</span>
           </div>
-          <p class="sign">motty is <em>awesome</em>.</p>
           <div class="colophon">
             <span>MJ&#39;s Studio</span>
             <span>no two alike</span>
             <span>refused <b id="hud-total">000</b></span>
             <span>a demonstration, not a store</span>
           </div>
+        </div>
+        <div class="sub sub--end" data-from="0.84" data-to="1.01">
+          <p class="end__title">motty is <em>awesome</em>.</p>
+          <p class="end__ask">ask, and it is yours</p>
+          <p class="end__cred">MJ&#39;s Studio <i>/</i> design dna <i>/</i> no two alike</p>
         </div>
       </div>
     </div>
@@ -295,6 +305,6 @@
   }
 }
 </script>
-<script src="js/site.js?v=40"></script>
+<script src="js/site.js?v=41"></script>
 </body>
 </html>

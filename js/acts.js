@@ -15,9 +15,55 @@ var TAU = Math.PI * 2;
  * 01 — THE DEFAULT ROOM
  * You are standing inside the average website before you realise that is what it is.
  * Camera: one straight backward dolly, zero rotation. Scale: one room. No accent.
+ *
+ * v7 surgery — entrance, exit, impact frames only:
+ *   ENTRANCE t 0.00..0.12  pitch dark; fluorescent rows snap on row by row, each
+ *                          with a real tube's double-stutter (pure spike train in t);
+ *                          the page on the far wall lights LAST and BRIGHTEST, and
+ *                          keeps a raised key (point light + emissive) for the whole
+ *                          act so it never sinks into the grey under ACES.
+ *   IMPACT               a <0.3u camera punch-in the instant the page lights
+ *                          (t≈0.102) and a smaller recoil when it detaches (t=0.90);
+ *                          both are narrow spike functions of t, zero elsewhere.
+ *   EXIT     t 0.90..1.00  the front page detaches and drives at the lens, filling
+ *                          the frame as the fade takes it: the match cut into the
+ *                          Registry's filed card.
+ * The vertigo dolly, clone rescale lock and fan payoff are untouched.
  * ========================================================================== */
 var ROOM_Z0 = -11;          /* where the one page hangs */
 var ROOM_LOCK = 5.165;      /* tan(fov/2) * (camZ - z0) held constant = the vertigo lock */
+
+/* one fluorescent row waking up: strike, dip, strike, dip, hold.
+   Pure function of t; window ~0.015 of t per row; scrub-exact. */
+function tubeSnap(t, onT) {
+  var u = (t - onT) / 0.015;
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  if (u < 0.22) return 1;      /* first strike */
+  if (u < 0.34) return 0.10;   /* dip one */
+  if (u < 0.60) return 1;
+  if (u < 0.72) return 0.16;   /* dip two */
+  return 1;                    /* hold */
+}
+
+/* the page under the interrogation lamp: same grammar, slightly longer,
+   timed so it is the LAST thing in the room to come on. Done by t=0.12. */
+function pageSnap(t) {
+  var u = (t - 0.102) / 0.018;
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  if (u < 0.20) return 1;
+  if (u < 0.32) return 0.08;
+  if (u < 0.58) return 1;
+  if (u < 0.70) return 0.14;
+  return 1;
+}
+
+/* impact frame: a narrow half-sine spike in t, exactly zero outside its window */
+function spike(t, t0, w) {
+  var u = (t - t0) / w;
+  return (u > 0 && u < 1) ? Math.sin(Math.PI * u) : 0;
+}
 
 export const actRoom = {
   id: "room", accent: null, bg: 0x1A1C20, fov: 38, restT: 0.85,
@@ -108,6 +154,16 @@ export const actRoom = {
     root.add(troughs);
     S.troughs = troughs; S.half = half;
 
+    /* ENTRANCE score: one deterministic switch-on time per row, sweeping from the
+       fixtures behind the lens away toward the far wall, tiny per-row jitter so the
+       sweep reads as a building's circuits and not a metronome. All rows are fully
+       on (env = 1) by t ≈ 0.105; the page follows at 0.102..0.12. Pure t. */
+    var rowJit = mulberry32(11);
+    S.rowOn = new Float32Array(half);
+    for (var i3 = 0; i3 < half; i3++) {
+      S.rowOn[i3] = 0.006 + (half > 1 ? i3 / (half - 1) : 0) * 0.078 + rowJit() * 0.004;
+    }
+
     /* a door frame standing in the mouth, retreating faster than you do */
     var door = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1),
       new T.MeshLambertMaterial({ color: 0x3C4046 }), 3);
@@ -123,12 +179,24 @@ export const actRoom = {
        projected size matches the front one exactly: head on you see a single rectangle,
        no matter where the camera is. that is what breaks at the end. */
     var N = small ? 110 : 200, step = 0.62;
-    var panel = new T.InstancedMesh(
-      new T.PlaneGeometry(3.2, 1.8),
-      new T.MeshLambertMaterial({
-        map: averagePageTexture(T, ctx.renderer, "#AEB6C0", "#35383F"), side: T.DoubleSide
-      }), N);
-    panel.count = 1;
+    var pageTex = averagePageTexture(T, ctx.renderer, "#AEB6C0", "#35383F");
+    var pageGeo = new T.PlaneGeometry(3.2, 1.8);
+    /* the hero page is its own Mesh so the raised key (emissive) touches ONLY it.
+       The clones behind it share the geometry and texture but stay non-emissive:
+       once the fan releases them to true size, their brightness is graded purely
+       by the point light's falloff — the depth the fan payoff depends on. */
+    var hero = new T.Mesh(pageGeo, new T.MeshLambertMaterial({
+      map: pageTex, side: T.DoubleSide,
+      /* the raised key: the page carries its own light so it stays the brightest
+         object in frame under ACES. Intensity is driven per frame from t. */
+      emissive: new T.Color(0xF2F5FA), emissiveMap: pageTex, emissiveIntensity: 0
+    }));
+    hero.position.set(0, 0.35, ROOM_Z0);
+    root.add(hero);
+    S.hero = hero;
+    var panel = new T.InstancedMesh(pageGeo,
+      new T.MeshLambertMaterial({ map: pageTex, side: T.DoubleSide }), N - 1);
+    panel.count = 0;
     root.add(panel);
     S.panel = panel; S.N = N; S.step = step;
     S.m4 = new T.Matrix4(); S.q = new T.Quaternion();
@@ -144,7 +212,8 @@ export const actRoom = {
     lamp.position.set(0, H / 2 - 0.4, 2); root.add(lamp); S.lamp = lamp;
     var onPanel = new T.PointLight(0xC9D2DC, 30, 40, 2);
     onPanel.position.set(0, 0.35, -14); root.add(onPanel); S.onPanel = onPanel;
-    root.add(new T.AmbientLight(0x4A4E56, 1.05));
+    var amb = new T.AmbientLight(0x4A4E56, 1.05);
+    root.add(amb); S.amb = amb;
   },
 
   camera: function (ctx) {
@@ -164,7 +233,15 @@ export const actRoom = {
     } else {
       camZ = lerp(17.80, 22.0, easeOut((t - 0.80) / 0.20)); fov = lerp(50, 52, (t - 0.80) / 0.20);
     }
-    c.position.set(0, 0.35, camZ);
+    /* impact frames: a punch-in the instant the page lights, a recoil when it
+       detaches. Narrow spikes in t, well under 0.3 units, zero everywhere else.
+       At these distances the translation alone is ~1% of image scale, so each
+       kick rides a synchronized fov spike — applied AFTER the lock computation
+       so the page visibly jumps in size for the strike. Still pure t. */
+    var strike = spike(t, 0.102, 0.016), recoil = spike(t, 0.90, 0.014);
+    var kick = -0.16 * strike + 0.08 * recoil;
+    fov += -1.8 * strike + 1.1 * recoil;
+    c.position.set(0, 0.35, camZ + kick);
     c.rotation.set(0, 0, 0);          /* zero rotation for the whole act, on every axis */
     if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
     ctx.actState.camZ = camZ;
@@ -183,25 +260,38 @@ export const actRoom = {
     /* how many clones are revealed, and how far the stack has fanned out of alignment */
     var reveal = clamp01((t - 0.30) / 0.44);
     var count = 1 + Math.floor(reveal * (S.N - 1));
-    S.panel.count = count;
+    S.panel.count = count - 1;   /* instance j is clone i = j + 1; the hero Mesh is i = 0 */
     var fan = ease(clamp01((t - 0.86) / 0.14));
 
+    /* EXIT: from t 0.90 the front page tears off the wall and drives at the lens,
+       filling the frame under the outgoing fade — the cut lands on it. Pure t. */
+    var exitE = t > 0.90 ? ease(clamp01((t - 0.90) / 0.10)) : 0;
+
+    /* the hero page (its own Mesh, the only emissive object): on the wall through
+       the act, then flying. Always true scale — its lock ratio is exactly 1 — so
+       driving its z to just ahead of the lens grows it to fill the frame. */
+    S.hero.position.z = exitE > 0 ? lerp(ROOM_Z0, camZ - 0.82, exitE) : ROOM_Z0;
+    S.hero.rotation.x = 0.34 * exitE * (1 - exitE); /* peels off the wall, lands flat for the cut */
+
     var base = camZ - ROOM_Z0;
-    for (var i = 0; i < count; i++) {
+    for (var i = 1; i < count; i++) {
       var z = ROOM_Z0 - i * S.step;
       var kAligned = (camZ - z) / base;      /* projects to exactly the front page's size */
       var k = lerp(kAligned, 1, fan);        /* ...until the fan releases them to true size */
       S.v.set(0, 0.35, z); S.s.set(k, k, 1);
       S.m4.compose(S.v, S.q, S.s);
-      S.panel.setMatrixAt(i, S.m4);
+      S.panel.setMatrixAt(i - 1, S.m4);
     }
     S.panel.instanceMatrix.needsUpdate = true;
 
     S.glow.material.opacity = reveal * 0.1;
 
-    /* the troughs go out far to near, and the two nearest stutter */
+    /* the troughs come on row by row through the entrance (each with its double
+       stutter, pure t), then go out far to near at the end; the two nearest that
+       survive the cull keep their shipped real-time flicker */
     var kill = clamp01((t - 0.72) / 0.20);
     var col = S.__c || (S.__c = new ctx.THREE.Color());
+    var roomFrac = 0;
     for (var j = 0; j < S.half; j++) {
       var depth = 1 - (j / S.half);
       var on = depth > kill;
@@ -209,25 +299,89 @@ export const actRoom = {
       if (on && j >= S.half - 2) {
         b *= 0.35 + 0.65 * (Math.sin(ctx.clock * 17) * Math.sin(ctx.clock * 6.3) > -0.4 ? 1 : 0);
       }
+      var env = tubeSnap(t, S.rowOn[j]);
+      roomFrac += env;
+      b *= env;
       S.troughs.setColorAt(j * 2 + 1, col.setRGB(0.788 * b, 0.816 * b, 0.855 * b));
     }
     if (S.troughs.instanceColor) S.troughs.instanceColor.needsUpdate = true;
+    roomFrac /= S.half;   /* 0 in the dark, exactly 1 from t≈0.105 on */
 
     /* the room light dies and the stack keeps its own, so the last thing you see is the
-       tunnel of nested rectangles the clones collapsed into */
-    S.lamp.intensity = lerp(120, 8, clamp01((t - 0.82) / 0.18));
-    S.onPanel.intensity = lerp(30, 95, clamp01((t - 0.72) / 0.28));
+       tunnel of nested rectangles the clones collapsed into. Both room lights scale
+       with the fraction of fixtures lit, so the entrance starts pitch dark. */
+    S.lamp.intensity = lerp(120, 8, clamp01((t - 0.82) / 0.18)) * roomFrac;
+    S.amb.intensity = 1.05 * lerp(0.04, 1, roomFrac);
+
+    /* the suspect under the lamp: the page lights last, stutters once, and from then
+       on carries the highest key in the room — point light plus its own emissive */
+    var pe = pageSnap(t);
+    S.onPanel.intensity = lerp(72, 150, clamp01((t - 0.72) / 0.28)) * pe;
+    /* only the hero Mesh carries the emissive key — the clones stay Lambert-only —
+       with a one-spike overshoot riding the t=0.102 impact frame */
+    S.hero.material.emissiveIntensity =
+      pe * lerp(0.34, 0.55, clamp01((t - 0.72) / 0.28)) * (1 + 0.6 * spike(t, 0.102, 0.016));
   }
 };
+
+/* ---------------------------------------------------------------------------
+ * 02 helpers. Unique names, module scope, allocation-free at frame time.
+ * ------------------------------------------------------------------------- */
+
+/* the marked slip: the one empty slot early in the camera path where the page
+   from act 01 gets filed. A fixed cell, so every visitor sees the same filing. */
+var RG_HC = 8, RG_HR = 6;
+
+/* entrance choreography (all in t). Ranks file in first, the exhibit lands last. */
+var RG_RANK_DELAY = 0.0055;      /* per-row stagger */
+var RG_COL_WAVE = 0.008;         /* extra delay across the travel direction */
+var RG_CARD_DUR = 0.026;         /* one card's slide */
+var RG_ENTR_PIN = 0.096;         /* every regular card is seated by here */
+var RG_HERO_T0 = 0.06, RG_HERO_DUR = 0.045;
+
+/* the three tier stamps: crisp thresholds inside the rack window 0.86..0.94.
+   The ladder is compressed so the third press completes at 0.934, before the
+   whip: restT sits just past it so the one reduced-motion frame is the racked
+   camera on three freshly pressed plaques (law 10). */
+var RG_TAU = [0.874, 0.896, 0.918];
+var RG_PRESS = 0.016;
+
+/* impact kick: a spike that exists only just after its threshold, zero elsewhere */
+function RG_kick(t, t0, w) {
+  if (t < t0 || t >= t0 + w) return 0;
+  var u = 1 - (t - t0) / w;
+  return u * u;
+}
+
+/* re-seat every card of one instanced mesh as a pure function of te.
+   arr stride 6: x, y, z, rotY, rotZ, delay. Called only while te changes. */
+function RG_place(S, mesh, arr, n, te) {
+  var m4 = S.m4, q = S.q, e = S.e, v = S.v, s = S.s;
+  for (var i = 0; i < n; i++) {
+    var o = i * 6;
+    var p = clamp01((te - arr[o + 5]) / RG_CARD_DUR);
+    var k = ease(p);
+    var back = 1 - k;
+    v.set(arr[o] - 9 * back, arr[o + 1], arr[o + 2] + 2.6 * back * back);
+    e.set(0, arr[o + 3], arr[o + 4]);
+    m4.compose(v, q.setFromEuler(e), s.set(1, 1, 1));
+    mesh.setMatrixAt(i, m4);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+}
 
 /* ============================================================================
  * 02 — THE REGISTRY
  * A pale archive wall of filed entries, most of them closed. Keeps the tonal
  * inversion the flat version had, but as a place you travel through rather than a
  * document you scroll past. Camera: a close tracking shot along the wall.
+ * Entrance: the reading lamp strikes on in the gloom, the ranks file in from the
+ * travel direction, and the page from act 01 arrives last, alone and brighter.
+ * Tail: the camera racks to the three tier plaques and they stamp, one, two,
+ * three, then the exit whips out along the wall.
  * ========================================================================== */
 export const actRegistry = {
-  id: "registry", accent: "#B82A14", bg: 0xE7E4DD, fov: 46, restT: 0.5, noGrade: true,
+  id: "registry", accent: "#B82A14", bg: 0xE7E4DD, fov: 46, restT: 0.935, noGrade: true,
   fog: function (T) { return new T.Fog(0xE7E4DD, 30, 110); },
 
   build: function (ctx) {
@@ -256,6 +410,7 @@ export const actRegistry = {
     var GX = 2.45, GY = 1.62;
     var COLS = small ? 34 : 74, ROWS = 12;
     S.COLS = COLS; S.GX = GX;
+    var span = COLS * GX;
     var geo = new T.PlaneGeometry(2.15, 1.34);
     var pub = new T.InstancedMesh(geo, new T.MeshLambertMaterial({ map: card(false) }), COLS * ROWS);
     var wit = new T.InstancedMesh(geo, new T.MeshLambertMaterial({ map: card(true) }), COLS * ROWS);
@@ -264,16 +419,41 @@ export const actRegistry = {
     var rnd = mulberry32(31);
     var px = [], wx = [], np = 0, nw = 0;
 
+    /* base transforms are also kept aside so the entrance can re-seat every card
+       as a pure function of t without touching the build-time jitter */
+    var pubE = new Float32Array(COLS * ROWS * 6);
+    var witE = new Float32Array(COLS * ROWS * 6);
+
     for (var c = 0; c < COLS; c++) {
       for (var r = 0; r < ROWS; r++) {
         var x = (c - COLS / 2) * GX + (rnd() - 0.5) * 0.06;
         var y = (r - (ROWS - 1) / 2) * GY + (rnd() - 0.5) * 0.04;
         var open = rnd() < 0.14;      /* a few are already common knowledge */
-        v.set(x, y, (rnd() - 0.5) * 0.05);
-        e.set(0, (rnd() - 0.5) * 0.02, (rnd() - 0.5) * 0.012);
+        var jz = (rnd() - 0.5) * 0.05;
+        var ry = (rnd() - 0.5) * 0.02, rz = (rnd() - 0.5) * 0.012;
+        if (c === RG_HC && r === RG_HR) {
+          /* the marked slip: this slot stays empty for the exhibit from act 01 */
+          S.heroX = (c - COLS / 2) * GX;
+          S.heroY = (r - (ROWS - 1) / 2) * GY;
+          continue;
+        }
+        var delay = r * RG_RANK_DELAY + ((x + span / 2) / span) * RG_COL_WAVE;
+        v.set(x, y, jz);
+        e.set(0, ry, rz);
         m4.compose(v, q.setFromEuler(e), s);
-        if (open) { pub.setMatrixAt(np, m4); pub.setColorAt(np, col.setHex(0xffffff)); px.push(x); np++; }
-        else { wit.setMatrixAt(nw, m4); wit.setColorAt(nw, col.setHex(0xffffff)); wx.push(x); nw++; }
+        if (open) {
+          pub.setMatrixAt(np, m4); pub.setColorAt(np, col.setHex(0xffffff)); px.push(x);
+          var op = np * 6;
+          pubE[op] = x; pubE[op + 1] = y; pubE[op + 2] = jz;
+          pubE[op + 3] = ry; pubE[op + 4] = rz; pubE[op + 5] = delay;
+          np++;
+        } else {
+          wit.setMatrixAt(nw, m4); wit.setColorAt(nw, col.setHex(0xffffff)); wx.push(x);
+          var ow = nw * 6;
+          witE[ow] = x; witE[ow + 1] = y; witE[ow + 2] = jz;
+          witE[ow + 3] = ry; witE[ow + 4] = rz; witE[ow + 5] = delay;
+          nw++;
+        }
       }
     }
     pub.count = np; wit.count = nw;
@@ -283,6 +463,21 @@ export const actRegistry = {
     root.add(pub); root.add(wit);
     S.pub = pub; S.wit = wit;
     S.px = Float32Array.from(px); S.wx = Float32Array.from(wx);
+    S.pubE = pubE; S.witE = witE;
+
+    /* the marked slip itself: an accent frame around the empty slot, standing a
+       hair off the wall so the visitor reads the reservation before the arrival */
+    var slip = new T.Mesh(new T.PlaneGeometry(2.45, 1.6),
+      new T.MeshBasicMaterial({ color: 0xB82A14 }));
+    slip.position.set(S.heroX, S.heroY, 0.004);
+    root.add(slip);
+
+    /* the exhibit: the page from act 01, self-lit, brighter than every filed card */
+    var hero = new T.Mesh(new T.PlaneGeometry(2.15, 1.34),
+      new T.MeshBasicMaterial({ map: averagePageTexture(T, ctx.renderer, "#AEB6C0", "#F7F6F1") }));
+    hero.position.set(S.heroX, S.heroY, 0.02);
+    root.add(hero);
+    S.hero = hero;
 
     /* the rails the cards are filed in */
     var rails = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1),
@@ -302,7 +497,9 @@ export const actRegistry = {
     back.position.z = -1.2;
     root.add(back);
 
-    /* tier plaques bolted to the wall, so the three tiers are labelled in the world */
+    /* tier plaques bolted to the wall, so the three tiers are labelled in the world.
+       They stand as a rank at the far end of the travel, where the tail racks to
+       watch them stamped in, one, two, three. */
     function plaque(label, rule) {
       return makeTexture(T, ctx.renderer, 1024, 168, function (g, w, h) {
         g.fillStyle = "#E7E4DD"; g.fillRect(0, 0, w, h);
@@ -313,20 +510,34 @@ export const actRegistry = {
         g.fillStyle = "#5C574C"; g.fillText(rule, 36, 118);
       });
     }
-    [["ABSOLUTE", "nothing lifts it", 5.7], ["HARD", "lifted only in writing", 0.25],
-     ["OFF", "chosen against, and logged", -5.2]].forEach(function (P, idx) {
+    var shTex = radialShadow(T, ctx.renderer);
+    var pxc = span / 2 - 13;
+    S.pxc = pxc;
+    S.plq = []; S.plqSh = [];
+    [["ABSOLUTE", "nothing lifts it", 3.2], ["HARD", "lifted only in writing", 1.5],
+     ["OFF", "chosen against, and logged", -0.2]].forEach(function (P) {
+      var sh = new T.Mesh(new T.PlaneGeometry(10.2, 2.9),
+        new T.MeshBasicMaterial({ map: shTex, transparent: true, opacity: 0, depthWrite: false }));
+      sh.position.set(pxc, P[2], 0.26);
+      root.add(sh);
       var m = new T.Mesh(new T.PlaneGeometry(7.6, 1.25),
         new T.MeshBasicMaterial({ map: plaque(P[0], P[1]) }));
-      m.position.set(-COLS * GX / 2 + 10 + idx * (COLS * GX / 3.4), P[2], 0.3);
+      m.position.set(pxc, P[2], 0.3);
       root.add(m);
+      S.plq.push(m); S.plqSh.push(sh);
     });
 
-    root.add(new T.HemisphereLight(0xFFFFFF, 0xBDB8AC, 2.6));
+    var hemi = new T.HemisphereLight(0xFFFFFF, 0xBDB8AC, 2.6);
+    root.add(hemi); S.hemi = hemi;
     var key = new T.DirectionalLight(0xFFFDF6, 1.0);
-    key.position.set(-8, 10, 14); root.add(key);
+    key.position.set(-8, 10, 14); root.add(key); S.key = key;
     S.lamp = new T.PointLight(0xFFF2DC, 260, 46, 2);
     S.lamp.position.set(0, 0, 5);
     root.add(S.lamp);
+
+    /* frame-time scratch, allocated once */
+    S.m4 = m4; S.q = q; S.e = e; S.v = v; S.s = s;
+    S.lastTe = -1;
   },
 
   camera: function (ctx) {
@@ -335,13 +546,43 @@ export const actRegistry = {
     var t = ctx.t, c = ctx.camera, S = ctx.actState;
     var span = S.COLS * S.GX;
     var x = lerp(-span / 2 + 12, span / 2 - 12, t);
-    var z = t < 0.20 ? lerp(34, 21, ease(t / 0.20))
-          : t < 0.72 ? lerp(21, 17, ease((t - 0.20) / 0.52))
-          : lerp(17, 30, ease((t - 0.72) / 0.28));
     var y = Math.sin(t * Math.PI) * 2.6 - 0.4;
-    c.position.set(x + ctx.pointer.x * 0.8, y + ctx.pointer.y * -0.5, z);
-    c.rotation.set(0, 0, 0);
-    c.lookAt(x + 1.1, y * 0.5, 0);       /* barely any yaw: it must read as a wall */
+    var pxc = S.pxc;
+    /* pointer drift fades out through the rack so the stamps land on a still lens */
+    var pk = t < 0.86 ? 1 : t < 0.94 ? 1 - (t - 0.86) / 0.08 : 0;
+    var pox = ctx.pointer.x * 0.8 * pk, poy = ctx.pointer.y * -0.5 * pk;
+
+    if (t < 0.86) {
+      var z = t < 0.20 ? lerp(34, 21, ease(t / 0.20))
+            : t < 0.72 ? lerp(21, 17, ease((t - 0.20) / 0.52))
+            : lerp(17, 30, ease((t - 0.72) / 0.28));
+      c.position.set(x + pox, y + poy, z);
+      c.rotation.set(0, 0, 0);
+      c.lookAt(x + 1.1, y * 0.5, 0);       /* barely any yaw: it must read as a wall */
+    } else if (t < 0.94) {
+      /* the rack: leave the wall drift and close on the tier rank */
+      var u = ease((t - 0.86) / 0.08);
+      var x0 = lerp(-span / 2 + 12, span / 2 - 12, 0.86);
+      var y0 = Math.sin(0.86 * Math.PI) * 2.6 - 0.4;
+      var z0 = lerp(17, 30, ease(0.5));    /* exactly where the old tail stood at 0.86 */
+      c.position.set(lerp(x0, pxc - 3.5, u) + pox, lerp(y0, 1.3, u) + poy, lerp(z0, 13.5, u));
+      c.rotation.set(0, 0, 0);
+      c.lookAt(lerp(x0 + 1.1, pxc, u), lerp(y0 * 0.5, 1.5, u), lerp(0, 0.3, u));
+    } else {
+      /* the whip: out along the wall, ranks streaking past the lens */
+      var w = (t - 0.94) / 0.06, a = w * w;
+      var cx = lerp(pxc - 3.5, pxc + 58, a);
+      c.position.set(cx, lerp(1.3, 0.7, w), lerp(13.5, 6.5, ease(w)));
+      c.rotation.set(0, 0, 0);
+      var lb = clamp01(w * 1.7);
+      c.lookAt(lerp(pxc, cx + 30, lb), lerp(1.5, 0.5, lb), lerp(0.3, -1.5, lb));
+    }
+
+    /* impact frames: one kick per stamp, plus a whisper when the exhibit seats.
+       Each is a spike function of t, zero outside its narrow window. */
+    var kk = 0.16 * (RG_kick(t, RG_TAU[0], 0.012) + RG_kick(t, RG_TAU[1], 0.012) + RG_kick(t, RG_TAU[2], 0.012))
+           + 0.05 * RG_kick(t, 0.105, 0.012);   /* peak at the seat: the press bottoms at t=0.105 */
+    if (kk > 0) { c.position.y -= kk; c.position.z -= kk * 0.6; }
   },
 
   frame: function (ctx) {
@@ -349,6 +590,39 @@ export const actRegistry = {
     var span = S.COLS * S.GX;
     var head = lerp(-span / 2 + 10, span / 2 - 10, t);
     S.lamp.position.x = head;
+
+    /* entrance light: the wall starts dark and undressed. The reading lamp strikes
+       on first (a two-step flicker keyed to t, crisp thresholds), then the room
+       light dresses up as the ranks arrive. All pure functions of t. */
+    S.lamp.intensity = t < 0.006 ? 0 : t < 0.011 ? 150 : t < 0.016 ? 40 : 260;
+    var dress = ease(clamp01((t - 0.03) / 0.07));
+    S.hemi.intensity = lerp(0.12, 2.6, dress);
+    S.key.intensity = lerp(0, 1.0, dress);
+
+    /* entrance ranks: every card is re-seated as a pure function of te. te pins at
+       RG_ENTR_PIN + eps, so past the entrance the buffers are uploaded exactly once
+       and scrubbing back re-opens the drawers. */
+    var te = t < RG_ENTR_PIN + 0.001 ? t : RG_ENTR_PIN + 0.001;
+    if (te !== S.lastTe) {
+      RG_place(S, S.wit, S.witE, S.wit.count, te);
+      RG_place(S, S.pub, S.pubE, S.pub.count, te);
+      S.lastTe = te;
+    }
+
+    /* the exhibit from act 01 arrives last: a flight in from the travel direction,
+       an arc over the ranks, then the drawer press into the marked slip */
+    var hp = clamp01((t - RG_HERO_T0) / RG_HERO_DUR);
+    /* before its flight the exhibit does not exist: on ultrawide frustums the
+       parked spawn point is inside the frame, so visibility is keyed off t */
+    S.hero.scale.setScalar(t < RG_HERO_T0 ? 0 : 1);
+    var f1 = ease(clamp01(hp / 0.8));
+    var f2 = ease(clamp01((hp - 0.8) / 0.2));
+    S.hero.position.set(
+      lerp(S.heroX - 30, S.heroX, f1),
+      lerp(S.heroY + 4.2, S.heroY, f1) + Math.sin(f1 * Math.PI) * 1.1,
+      lerp(9.5, 0.55, f1) - 0.53 * f2
+    );
+    S.hero.rotation.set(0, 0.35 * (1 - f1), -0.16 * (1 - f1));
 
     /* everything behind the reading head has been dealt with and closed */
     for (var i = 0; i < S.wit.count; i++) {
@@ -362,6 +636,23 @@ export const actRegistry = {
       S.pub.setColorAt(j, col.setRGB(1, near ? 1 : 0.94, near ? 0.97 : 0.88));
     }
     if (S.pub.instanceColor) S.pub.instanceColor.needsUpdate = true;
+
+    /* the stamps: each plaque is untouched until its threshold, then pops proud at
+       1.06 and presses to 1.0 with a pressed shadow. Pure function of t. */
+    for (var k = 0; k < 3; k++) {
+      var m = S.plq[k], sh = S.plqSh[k];
+      if (t >= RG_TAU[k]) {
+        var pp = ease(clamp01((t - RG_TAU[k]) / RG_PRESS));
+        var sc = lerp(1.06, 1, pp);
+        m.scale.set(sc, sc, 1);
+        m.position.z = lerp(0.62, 0.3, pp);
+        sh.material.opacity = lerp(0.55, 0.22, pp);
+      } else {
+        m.scale.set(1, 1, 1);
+        m.position.z = 0.3;
+        sh.material.opacity = 0;
+      }
+    }
   }
 };
 
@@ -387,6 +678,17 @@ var FL_HOP_X = [-7.9, -6.3, -4.7, -3.1, -1.5, 0.1];
 function FL_dip(u) {
   var d = 1 - clamp01(Math.abs(u - 0.5) / 0.30);
   return ease(d);
+}
+
+/* the boot curve for one subsystem: 0 before its window, then a fast grow past
+   unity to 1.03, then the settle back onto 1. Exactly 1 from the window's end on,
+   so the act between t 0.12 and 0.88 renders as it always has, and the
+   reduced-motion still frame at restT carries no trace of the entrance. */
+function FL_boot(t, a, b) {
+  var k = clamp01((t - a) / (b - a));
+  if (k <= 0) return 0;
+  if (k < 0.35) return easeOut(k / 0.35) * 1.03;
+  return 1.03 - 0.03 * ease((k - 0.35) / 0.65);
 }
 
 /* one LineSegments for every drawn outline on the floor: box edges are baked into a
@@ -727,6 +1029,19 @@ export const actFloor = {
     root.add(flung);
     S.flung = flung;
 
+    /* THE LAST SHEET. One more unit, its own mesh, parked at nothing until the exit:
+       at t 0.90 it leaves the mouth like every other survivor, but this one is carried
+       up to the lens so the outgoing whip has a subject to land on. Same page texture
+       as the line (shared), so it is unmistakably one of them. */
+    var hero = new T.Mesh(new T.PlaneGeometry(2.0, 1.25),
+      new T.MeshBasicMaterial({
+        map: panels.material.map, alphaTest: 0.4, side: T.DoubleSide
+      }));
+    hero.scale.setScalar(0.0001);
+    root.add(hero);
+    S.hero = hero;
+    S.heroV = new T.Vector3(); S.heroA = new T.Vector3(); S.heroL = new T.Vector3();
+
     /* ---------------- the reject bin, and the pile inside it --------------------- */
     var bin = new T.Mesh(new T.BoxGeometry(2.4, 0.95, 2.4),
       new T.MeshLambertMaterial({ color: 0x232932 }));
@@ -906,6 +1221,7 @@ export const actFloor = {
       [2.6, 0.62, 7.7, FL_X_PRESS, 4.55, 0]
     ]), new T.LineBasicMaterial({ color: ICE, transparent: true, opacity: 0.5 }));
     root.add(edges);
+    S.edges = edges;
 
     /* ---------------- light ------------------------------------------------------ */
     root.add(new T.HemisphereLight(0x6E93B0, 0x0B1016, 1.1));
@@ -918,6 +1234,17 @@ export const actFloor = {
     out.position.set(FL_X_TURN, FL_Y_AXIS + 0.6, FL_Z_MOUTH + 1.2);
     root.add(out);
     S.out = out;
+
+    /* ---------------- the boot groups (entrance, t 0..0.10) ----------------------
+       Each list is one subsystem the entrance assembles as a beat: the whole mesh
+       gets an object-level scale from FL_boot, so no instance matrix is rewritten
+       for the entrance and every group seats at exactly 1 by the window's end.
+       The drawn linework (plan, services, merged edges, throat) fades instead of
+       scaling: the drawing traces up first and the steel arrives into it. */
+    S.gRail = [lip, rail, legs, gate, truss, bolt, crane, lamps, panels];
+    S.gHop = [hop, spout, stock, colShell, colCore];
+    S.gPress = [press, arm, die, bin, pile];
+    if (S.motes) S.gPress.push(S.motes);
 
     /* ---------------- scratch, allocated once ------------------------------------ */
     S.m4 = new T.Matrix4(); S.q = new T.Quaternion(); S.e = new T.Euler(0, 0, 0);
@@ -964,6 +1291,22 @@ export const actFloor = {
     );
     c.rotation.set(0, 0, 0);
     c.lookAt(lx, ly, lz);
+
+    /* IMPACT KICK. A vertical dip of the whole frame, spiking exactly at the bottom
+       of each press stroke. NOTE on law 1/12: the press phase is NOT clock-driven —
+       the arm reads frame()'s slot, itself a pure function of ctx.t — so this kick
+       recomputes the SAME slot from the same t and they can never disagree; no clock
+       is read, this is scene state and scrubs exactly. Applied after lookAt so the
+       aim holds and the picture drops rather than re-aims. Faded out with the press
+       ramp on the way in and before the exit whip on the way out. */
+    var S = ctx.actState;
+    if (S && S.NP) {
+      var slot = S.ph0 + S.NP * (1.05 * t + 2.35 * t * t);
+      var u = slot - Math.floor(slot);
+      var kAmp = clamp01((t - 0.20) / 0.14) * (1 - clamp01((t - 0.88) / 0.06));
+      c.position.y -= ease(clamp01(1 - Math.abs(u - 0.5) / 0.062)) * 0.21 * kAmp;
+    }
+
     if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
   },
 
@@ -974,6 +1317,23 @@ export const actFloor = {
     var S = ctx.actState, t = ctx.t;
     var NP = S.NP, SP = S.SP, m4 = S.m4, v = S.v, s = S.s, q = S.q, e = S.e;
     var i, x, y, z, sc, p, lane;
+
+    /* THE BOOT (entrance, t 0..~0.10). The plant assembles in dependency order
+       through the page's own fade-up: the drawn plan traces up from black first
+       (the big move, readable through the fade), then the rails and their steel,
+       then the six hoppers and the feed column, then the press: each subsystem
+       seats with a small settle (1.03 -> 1, from FL_boot). All pure shapes of t:
+       a backward scrub takes the floor apart in reverse order, and at restT every
+       factor here is exactly 1, so the reduced-motion still frame is the
+       fully-entered floor. */
+    var bPlan = ease(clamp01(t / 0.04));
+    var bRail = FL_boot(t, 0.020, 0.058);
+    var bHop = FL_boot(t, 0.042, 0.078);
+    var bPress = FL_boot(t, 0.060, 0.096);
+    for (i = 0; i < S.gRail.length; i++) S.gRail[i].scale.setScalar(Math.max(bRail, 1e-4));
+    for (i = 0; i < S.gHop.length; i++) S.gHop[i].scale.setScalar(Math.max(bHop, 1e-4));
+    for (i = 0; i < S.gPress.length; i++) S.gPress[i].scale.setScalar(Math.max(bPress, 1e-4));
+    S.edges.material.opacity = 0.5 * bPlan;
 
     /* THE LINE. One slot per unit, and the slot number is a pure function of t: the belt
        does not run on the clock, so a given unit is always in the same place at the same
@@ -1064,7 +1424,9 @@ export const actFloor = {
     S.flung.instanceMatrix.needsUpdate = true;
 
     /* THE PRESS. The stroke is derived from the same slot number as the belt, so the arm
-       is at the bottom exactly when a unit is registered under it. */
+       is at the bottom exactly when a unit is registered under it. The camera kick in
+       camera() reads this same slot from the same t: one source, and the dip of the
+       frame lands with the die flash, never beside it. */
     var amp = clamp01((t - 0.20) / 0.14);
     var d = FL_dip(u) * amp;
     S.arm.position.y = 2.35 - d * 1.15;
@@ -1106,12 +1468,23 @@ export const actFloor = {
     /* the lip lamps come on left to right as the line warms, go vermilion around the bin
        once the press is throwing units out, and go hot at the transfer end for the pass.
        One integer decides whether any of that changed, so the colour buffer is uploaded
-       on a crossing and never on a held frame. */
+       on a crossing and never on a held frame.
+       THE WAKE SWEEP (end of the entrance window): a hot self-test front travels the
+       rank once, t 0.076..0.108, then hands the row back to the shipped warm-up. The
+       sweep is quantised into the same guard integer, so its uploads also happen only
+       on a step crossing and a held frame still uploads nothing. */
     var litN = Math.floor((t - 0.10) / 0.017) + 1;
     if (litN < 0) litN = 0; if (litN > S.LAMP) litN = S.LAMP;
-    var gKey = litN * 4 + (t > 0.52 ? 2 : 0) + (t > 0.84 ? 1 : 0);
+    var swK = (t - 0.076) / 0.032;
+    var sweeping = swK > 0 && swK < 1;
+    var gKey = sweeping ? 10000 + Math.floor(swK * 34)
+                        : litN * 4 + (t > 0.52 ? 2 : 0) + (t > 0.84 ? 1 : 0);
     if (gKey !== S.lampGuard) {
       S.lampGuard = gKey;
+      /* the front is derived from the QUANTISED step, not raw t, so the colour state
+         is a pure function of gKey alone: forward and backward scrubs that land in
+         the same step paint the identical row */
+      var front = ((Math.floor(swK * 34) + 0.5) / 34) * (S.LAMP + 3);
       for (i = 0; i < S.LAMP; i++) {
         var lit = S.lampRank[i] < litN;
         var c2 = S.cLampOff;
@@ -1120,14 +1493,19 @@ export const actFloor = {
           if (t > 0.52 && S.lampZ[i] > 0 && Math.abs(S.lampX[i] - FL_BIN[0]) < 3.2) c2 = S.cLampRed;
           else if (t > 0.84 && S.lampX[i] > 6.4) c2 = S.cLampHot;
         }
+        if (sweeping) {
+          var dr = front - S.lampRank[i];
+          if (dr >= 0 && dr < 3) c2 = S.cLampHot;
+        }
         S.lamps.setColorAt(i, c2);
       }
       if (S.lamps.instanceColor) S.lamps.instanceColor.needsUpdate = true;
     }
 
-    /* the floor powers up, then hands its brightness downstream */
-    S.svc.material.opacity = lerp(0.14, 0.52, ease(clamp01((t - 0.10) / 0.45)))
-      + 0.20 * clamp01((t - 0.78) / 0.16);
+    /* the floor powers up, then hands its brightness downstream. bPlan multiplies the
+       drawn layers only inside the entrance: it is exactly 1 from t 0.04 on. */
+    S.svc.material.opacity = (lerp(0.14, 0.52, ease(clamp01((t - 0.10) / 0.45)))
+      + 0.20 * clamp01((t - 0.78) / 0.16)) * bPlan;
     S.spout.material.opacity = 0.34 * clamp01((t - 0.06) / 0.14);
     /* the column breathes on SCROLL, not on the clock: six cycles across the act. A clock sine
        here would give a different brightness every time you came back to the same scroll
@@ -1135,15 +1513,50 @@ export const actFloor = {
     S.col.material.opacity = (0.30 + Math.sin(t * TAU * 6) * 0.09) * clamp01((t - 0.02) / 0.12);
 
     var hand = ease(clamp01((t - 0.62) / 0.30));
-    S.throat.material.opacity = lerp(0.10, 0.95, hand);
+    S.throat.material.opacity = lerp(0.10, 0.95, hand) * bPlan;
     S.mouth.material.opacity = 0.62 * ease(clamp01((t - 0.66) / 0.26));
     S.out.intensity = 190 * ease(clamp01((t - 0.70) / 0.24));
     S.key.intensity = lerp(2.6, 1.15, ease(clamp01((t - 0.80) / 0.20)));
-    S.top.material.color.lerpColors(S.cWhite, S.cCold, ease(clamp01((t - 0.78) / 0.22)));
+    S.top.material.color.lerpColors(S.cWhite, S.cCold, ease(clamp01((t - 0.78) / 0.22)))
+      .multiplyScalar(bPlan);   /* the plan traces up from black through the page fade */
 
     if (S.motes) {
       S.motes.material.opacity = 0.30 * clamp01((t - 0.24) / 0.12) * (1 - 0.45 * hand);
       S.motes.rotation.y = t * 2.4;           /* one matrix, and scored off scroll like the rest */
+    }
+
+    /* THE EXIT (t 0.90..1). The LAST sheet: it leaves the mouth like every other unit,
+       but this one is carried up to the lens as the orbit closes on the throat, so the
+       outgoing whip lands on it. The camera's final leg is replicated here (same keys
+       0.90 and 1.00, same ease, same pointer terms) rather than read off ctx.camera,
+       so frame() stays pure in t and does not care whether it runs before or after
+       camera(). The kick above is already zero by t 0.94, so the replica cannot drift
+       from the real lens while the sheet is close. */
+    var H = S.hero;
+    if (t > 0.885) {
+      var ek = ease(clamp01((t - 0.90) / 0.10));
+      var az2 = lerp(0.30, 0.22, ek), rad2 = lerp(19.0, 13.5, ek);
+      var el2 = lerp(26, 11, ek) * Math.PI / 180, ce2 = Math.cos(el2);
+      var lx2 = lerp(7.6, 8.4, ek), ly2 = lerp(1.50, 1.35, ek), lz2 = lerp(-3.4, -10.5, ek);
+      var cpx = lx2 + Math.sin(az2) * rad2 * ce2 + ctx.pointer.x * 0.55;
+      var cpy = ly2 + Math.sin(el2) * rad2 + ctx.pointer.y * -0.35;
+      var cpz = lz2 + Math.cos(az2) * rad2 * ce2;
+      S.heroV.set(lx2 - cpx, ly2 - cpy, lz2 - cpz).normalize();
+      S.heroA.set(cpx + S.heroV.x * 2.3, cpy + S.heroV.y * 2.3, cpz + S.heroV.z * 2.3);
+      var he = ease(clamp01((t - 0.905) / 0.075));
+      S.heroL.set(FL_X_TURN, FL_Y_AXIS, FL_Z_MOUTH - 0.9).lerp(S.heroA, he);
+      H.position.copy(S.heroL);
+      H.lookAt(cpx, cpy, cpz);                 /* H is root's child from build, not fresh */
+      H.rotateZ(0.35 * he);                    /* lookAt fully resets the quaternion first,
+                                                  so this relative roll is still pure in t */
+      H.scale.setScalar(Math.max(clamp01((t - 0.895) / 0.02), 1e-4));
+    } else {
+      /* hidden all act and at restT — and PARKED, not just shrunk: position and
+         orientation are reset too, so the whole object is a pure function of t
+         and a backward scrub out of the exit window leaves no stale state */
+      H.position.set(FL_X_TURN, FL_Y_AXIS, FL_Z_MOUTH - 0.9);
+      H.rotation.set(0, 0, 0);
+      H.scale.setScalar(1e-4);
     }
 
     /* the tally is a global counter, so the hook is latched. Everything it refers to is
@@ -1263,6 +1676,48 @@ function runFlareTexture(T, renderer) {
   });
 }
 
+/* the light behind the mouth doors: a cool slit that spills through the widening
+   gap while the halves part, and is gone the moment they are fully open. A radial
+   wash stretched into a slit by the scale the frame sets on it. */
+function runSpillTexture(T, renderer) {
+  return makeTexture(T, renderer, 256, 256, function (g, w, h) {
+    var r = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+    r.addColorStop(0, "rgba(236,243,251,.95)");
+    r.addColorStop(0.5, "rgba(203,213,225,.38)");
+    r.addColorStop(1, "rgba(203,213,225,0)");
+    g.fillStyle = r; g.fillRect(0, 0, w, h);
+  });
+}
+
+/* ---- the refusal impact transient (law 1 exception) ----------------------------
+   One kick slot and one shock ring, allocated in build and reused; simultaneous
+   refusals share them. Both decay on wall clock over 0.35s because they are
+   FEEDBACK on a real click or R press, not scene state: the struck panel's final
+   matrix is written by runStrike before the transient starts, and runKickSettle
+   restores exactly that matrix when the transient ends or is pre-empted, so the
+   scene is identical before and after. Nothing here touches the camera. */
+function runKickSettle(S) {
+  if (!S.kickLive) return;
+  var W = S.walls[S.kickMi];
+  if (W && S.kickId < W.mesh.count) {
+    S.v.set(S.kickPos[0], S.kickPos[1], S.kickPos[2]);
+    S.q.set(S.kickQuat[0], S.kickQuat[1], S.kickQuat[2], S.kickQuat[3]);
+    S.s.set(1, 1, 1);
+    S.m4.compose(S.v, S.q, S.s);
+    W.mesh.setMatrixAt(S.kickId, S.m4);
+    W.mesh.instanceMatrix.needsUpdate = true;
+    if (S.kickPlate >= 0 && S.kickPlate < S.struck.count) {
+      S.v.set(S.kickPlatePos[0], S.kickPlatePos[1], S.kickPlatePos[2]);
+      S.m4.compose(S.v, S.q, S.s);
+      S.struck.setMatrixAt(S.kickPlate, S.m4);
+      S.struck.instanceMatrix.needsUpdate = true;
+    }
+  }
+  S.ring.visible = false;
+  S.ring.material.opacity = 0;
+  S.kickLive = false;
+}
+
 /* ---- the refusal itself, shared by the click handler and the r key ---- */
 
 /* A refused page does four things at once, so the strike reads at flight speed and
@@ -1275,6 +1730,9 @@ function runStrike(ctx, mi, id) {
   var W = S.walls[mi];
   if (!W || id >= W.mesh.count || W.gone[id]) return false;
   W.gone[id] = 1;
+
+  /* a refusal already mid-kick settles instantly: the slot is shared */
+  runKickSettle(S);
 
   var b = id * 3;
   var px = W.pos[b], py = W.pos[b + 1], pz = W.pos[b + 2];
@@ -1292,6 +1750,12 @@ function runStrike(ctx, mi, id) {
   W.mesh.setColorAt(id, S.stamp);
   if (W.mesh.instanceColor) W.mesh.instanceColor.needsUpdate = true;
 
+  /* the kick slot claims this panel's FINAL pose before anything perturbs it */
+  S.kickMi = mi; S.kickId = id;
+  S.kickPos[0] = S.v.x; S.kickPos[1] = S.v.y; S.kickPos[2] = S.v.z;
+  S.kickQuat[0] = S.q.x; S.kickQuat[1] = S.q.y; S.kickQuat[2] = S.q.z; S.kickQuat[3] = S.q.w;
+  S.kickPlate = -1;
+
   /* the struck plate, floated just clear of the page along its own normal */
   if (S.struck.count < S.struckMax) {
     S.n.set(0, 0, 1).applyQuaternion(S.q).multiplyScalar(0.075);
@@ -1299,6 +1763,8 @@ function runStrike(ctx, mi, id) {
     S.s.set(1, 1, 1);
     S.m4.compose(S.v, S.q, S.s);
     S.struck.setMatrixAt(S.struck.count, S.m4);
+    S.kickPlate = S.struck.count;
+    S.kickPlatePos[0] = S.v.x; S.kickPlatePos[1] = S.v.y; S.kickPlatePos[2] = S.v.z;
     S.struck.count += 1;
     S.struck.instanceMatrix.needsUpdate = true;
   }
@@ -1319,6 +1785,11 @@ function runStrike(ctx, mi, id) {
   var sc = S.tube.scale.x;
   S.flare.position.set(px * sc, py * sc, pz + 0.5);
   S.flareAt = ctx.clock;
+
+  /* arm the impact transient: kick toward the lens + shock ring, 350ms wall clock */
+  S.ring.position.set(px * sc, py * sc, pz + 0.5);
+  S.kickAt = ctx.clock;
+  S.kickLive = true;
 
   if (ctx.hooks && ctx.hooks.onRefuse) ctx.hooks.onRefuse(1);
   return true;
@@ -1455,6 +1926,49 @@ export const actRun = {
     cgeo.setAttribute("position", new T.Float32BufferAttribute(cpts, 3));
     tube.add(new T.LineSegments(cgeo,
       new T.LineBasicMaterial({ color: 0x4E5661, transparent: true, opacity: 0.55 })));
+
+    /* ---------------- the mouth: the first ring of the tube is a pair of doors ----
+       Two curved segments closed over the channel at the tube's LIP: z 2, just in
+       front of the first page layer (z 0 +/- 0.25; the shell is 1.5 deep), NOT out at
+       z 6 where the lens (z 14 -> -10 over p 0..0.14, dp/dt ~ 1.84 at t 0) crossed
+       the station at t ~ 0.025 with the halves only a quarter parted, playing the
+       rest of the beat behind the camera. At z 2 the crossing lands at t ~ 0.038 and
+       the parting in frame() completes exactly there, so the WHOLE mouth-opening is
+       witnessed in front of the lens while the page fades up from black. Fully
+       parted (and switched off) long before restT, so the reduced motion single
+       frame at restT never sees them. Pure t throughout. */
+    var doorGrp = new T.Group();
+    doorGrp.position.z = 2;
+    root.add(doorGrp);
+    S.doorGrp = doorGrp;
+
+    var doorGeo = new T.CylinderGeometry(4.15, 4.15, 1.5, small ? 20 : 32, 1, true, 0, Math.PI);
+    var doorMat = new T.MeshLambertMaterial({ color: 0x39414D, side: T.DoubleSide });
+    S.doorR = new T.Group();          /* pivots carry the parting; the meshes keep */
+    S.doorL = new T.Group();          /* their own axis flip so euler orders never mix */
+    var doorRm = new T.Mesh(doorGeo, doorMat);            /* x > 0 half */
+    doorRm.rotation.x = Math.PI / 2;
+    var doorLm = new T.Mesh(doorGeo, doorMat);            /* x < 0 half */
+    doorLm.rotation.x = Math.PI / 2;
+    doorLm.rotation.z = Math.PI;      /* local z spin flips the half across the seam */
+    S.doorR.add(doorRm);
+    S.doorL.add(doorLm);
+    doorGrp.add(S.doorR);
+    doorGrp.add(S.doorL);
+
+    /* the light behind the doors. The halves are an open-bored ring (open-ended
+       half cylinders), so they NEVER occlude the channel — depth testing does not
+       hide this plane while the mouth is "closed". The reveal is carried entirely
+       by the sin(dk * PI) opacity ramp in frame(): it lifts the spill as the gap
+       widens and kills it the moment the halves are fully parted. Removing that
+       ramp, or holding the glow on while closed, leaks light through a shut mouth. */
+    S.doorGlow = new T.Mesh(new T.PlaneGeometry(8.4, 8.4),
+      new T.MeshBasicMaterial({
+        map: runSpillTexture(T, R), transparent: true, opacity: 0,
+        depthWrite: false, blending: T.AdditiveBlending
+      }));
+    S.doorGlow.position.z = -1.1;
+    doorGrp.add(S.doorGlow);
 
     /* ---------------- the apparatus: this is a run being inspected ---------------- */
 
@@ -1701,6 +2215,23 @@ export const actRun = {
     root.add(flare);
     S.flare = flare; S.flareAt = -99; S.flareO = -1;
 
+    /* the shock ring: ONE instance, allocated here, reused by every refusal.
+       Billboarded to the lens while live, hidden the rest of the time. */
+    S.ring = new T.Mesh(new T.RingGeometry(0.86, 1.0, 48),
+      new T.MeshBasicMaterial({
+        color: 0xFF3B21, transparent: true, opacity: 0,
+        depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending
+      }));
+    S.ring.visible = false;
+    root.add(S.ring);
+
+    /* the kick slot: base pose of the panel (and its struck plate) mid-transient */
+    S.kickAt = -99; S.kickLive = false;
+    S.kickMi = -1; S.kickId = -1; S.kickPlate = -1;
+    S.kickPos = new Float32Array(3);
+    S.kickQuat = new Float32Array(4);
+    S.kickPlatePos = new Float32Array(3);
+
     S.lamp = new T.PointLight(0xBFC8D4, 95, 34, 2);
     root.add(S.lamp);
     root.add(new T.AmbientLight(0x2A3038, 1.2));
@@ -1789,6 +2320,27 @@ export const actRun = {
     var sc = lerp(1, 0.86, n);
     S.tube.scale.x = sc; S.tube.scale.y = sc;
 
+    /* the mouth doors part across the entrance and are retired by t 0.10: every term
+       here is a pure function of t, and the whole group is off for 90% of the act.
+       The parting completes at t ~ 0.038, the instant the lens crosses the door
+       station (z 2), so none of it plays behind the camera. The spill is NOT a
+       depth-occlusion reveal (the halves are an open-bored ring that never covers
+       the channel): the sin(dk * PI) opacity ramp below IS the reveal — it rises
+       as the gap widens and is gone the moment the halves are fully parted. */
+    var doorsOn = t < 0.10;
+    S.doorGrp.visible = doorsOn;
+    if (doorsOn) {
+      var dk = ease(clamp01(t / 0.038));
+      S.doorR.position.x = 6.6 * dk;
+      S.doorL.position.x = -6.6 * dk;
+      S.doorR.rotation.z = -0.14 * dk;      /* a hint of iris in the parting */
+      S.doorL.rotation.z = 0.14 * dk;
+      var spill = Math.sin(Math.min(dk, 0.999) * Math.PI);
+      S.doorGlow.material.opacity = 0.85 * spill;
+      S.doorGlow.visible = spill > 0.004;
+      S.doorGlow.scale.set(0.3 + 3.0 * dk, 1.15, 1);
+    }
+
     /* fog opens across the aperture crossing. The camera passes RUN_END_Z at t ~ 0.80, so
        the ramp is centred there instead of running on a smooth slope that knows nothing
        about the bulkhead: the world visibly widens at the instant you clear the hole. */
@@ -1803,13 +2355,17 @@ export const actRun = {
     /* streaks stretch with the analytic speed of the warp and collapse as it decays. They
        also fade out before the lens reaches the bulkhead: their instances reach 100 units
        past the group station, so left running they filled the far side of the aperture with
-       more tunnel, both before the visitor got there and after they arrived. */
+       more tunnel, both before the visitor got there and after they arrived.
+       Then the last 6% brings them BACK as the burst: past the bulkhead the same
+       instances read as speed lines around the emergence, so the material ramps up
+       and stretches hard while the canvas fades to black over them. Pure t. */
     var speed = clamp01((0.30 + 1.54 * Math.pow(1 - t, 1.2)) / 1.84);
     var out = ease(clamp01((t - 0.62) / 0.16));
+    var burst = ease(clamp01((t - 0.94) / 0.06));
     S.streaks.position.z = camZ - 10;
-    S.streaks.scale.z = lerp(0.6, 4.2, speed);
-    S.streakMat.opacity = 0.35 * (1 - out);
-    S.streaks.visible = out < 0.999;
+    S.streaks.scale.z = lerp(0.6, 4.2, speed) + 7.0 * burst;
+    S.streakMat.opacity = 0.35 * (1 - out) + 0.60 * burst;
+    S.streaks.visible = out < 0.999 || burst > 0.002;
 
     /* the ledger rack keeps station beside you, and parks where its rail ends rather than
        towing its bottom rail and its lowest bars through the solid lower panel of the
@@ -1874,6 +2430,41 @@ export const actRun = {
       S.flare.visible = o > 0.002;
     }
     if (S.flare.visible) S.flare.quaternion.copy(ctx.camera.quaternion);
+
+    /* the refusal impact: the struck panel (and its plate) kicks 0.4 units toward
+       the lens and eases back over 350ms wall clock, while the shock ring expands
+       from the strike point and fades over the same window. Law 1 exception:
+       interaction feedback only. The camera is never touched, uploads happen only
+       while the transient is live, and runKickSettle's final write puts back the
+       exact matrix runStrike composed, so the scene is identical before and after.
+       Under reduced motion the transient is skipped entirely: the strike itself
+       (recolour, swing, plate, bar) already landed synchronously in runStrike. */
+    if (S.kickLive) {
+      var ku = (ctx.clock - S.kickAt) / 0.35;
+      if (ctx.reduce || ku >= 1) {
+        runKickSettle(S);
+      } else if (ku >= 0) {
+        var off = 0.4 * Math.pow(1 - ku, 2);   /* lands at full kick, eases home */
+        S.q.set(S.kickQuat[0], S.kickQuat[1], S.kickQuat[2], S.kickQuat[3]);
+        S.s.set(1, 1, 1);
+        S.v.set(S.kickPos[0], S.kickPos[1], S.kickPos[2] + off);
+        S.m4.compose(S.v, S.q, S.s);
+        var KW = S.walls[S.kickMi];
+        KW.mesh.setMatrixAt(S.kickId, S.m4);
+        KW.mesh.instanceMatrix.needsUpdate = true;
+        if (S.kickPlate >= 0 && S.kickPlate < S.struck.count) {
+          S.v.set(S.kickPlatePos[0], S.kickPlatePos[1], S.kickPlatePos[2] + off);
+          S.m4.compose(S.v, S.q, S.s);
+          S.struck.setMatrixAt(S.kickPlate, S.m4);
+          S.struck.instanceMatrix.needsUpdate = true;
+        }
+        var rs = lerp(0.5, 3.1, easeOut(ku));
+        S.ring.scale.set(rs, rs, 1);
+        S.ring.material.opacity = 0.85 * (1 - ku);
+        S.ring.visible = true;
+        S.ring.quaternion.copy(ctx.camera.quaternion);
+      }
+    }
   }
 };
 
@@ -1913,6 +2504,23 @@ var VLT_LOCK0 = 0.74, VLT_LOCK1 = 0.80;
 
 function VLT_lockK(t) { return ease(clamp01((t - VLT_LOCK0) / (VLT_LOCK1 - VLT_LOCK0))); }
 function VLT_stepK(t, i) { return ease(clamp01((t - VLT_STEP_T[i]) / 0.06)); }
+
+/* THE ENTRANCE: the monoliths rise out of the floor ring by ring, outer first,
+   breaking the dead overhead stretch. Each window is [start, span] in t; the
+   last (inner) ring lands at t=0.12, well before the first awakening step at
+   0.20 and long before the lock. easeOut so the stone decelerates into place.
+   Below the floor the slabs are hidden by the opaque floor disc's depth, so
+   the rise reads as emergence, not intersection. Pure t; at restT 0.8 every
+   rise is 1 and the layout is byte-identical to the pre-entrance build. */
+var VLT_RISE = [
+  [0.00, 0.080],
+  [0.03, 0.075],
+  [0.06, 0.060]
+];
+function VLT_riseK(t, ri) {
+  var w = VLT_RISE[ri];
+  return easeOut(clamp01((t - w[0]) / w[1]));
+}
 
 /* unit slab corners for the merged edge lines: x/z slightly proud of the faces
    so the lines never z-fight the body, y as a 0..1 factor multiplied by height
@@ -2063,16 +2671,22 @@ function VLT_slabGeometry(T, wx, dz) {
 
 /* the one layout function: slab matrices (body + etch overlay) and the merged
    edge lines, written together so they can never disagree. Runs at build, and
-   after that ONLY while the lock is actually turning (guarded on lockK). */
-function VLT_layout(S, lockK) {
+   after that ONLY while the lock is turning or a ring is still rising, guarded
+   on lockK and the three per-ring rise levels (exact compares in frame()).
+   r0/r1/r2 are the entrance rises: each slab sits at y = -height*(1-rise), so
+   at rise 0 it is fully sunk under the floor and at rise 1 exactly where the
+   verified act has always stood it. */
+function VLT_layout(S, lockK, r0, r1, r2) {
   var inv = 1 - lockK;
   var pos = S.edgePos, o = 0;
   for (var i = 0; i < VLT_N; i++) {
     var yaw = S.baseYaw[i] + S.jitter[i] * inv;
     var hh = S.slabH[i], px = S.slabX[i], pz = S.slabZ[i];
+    var rise = S.ringOf[i] === 0 ? r0 : S.ringOf[i] === 1 ? r1 : r2;
+    var yOff = -hh * (1 - rise);
     S.e.set(0, yaw, 0);
     S.q.setFromEuler(S.e);
-    S.v.set(px, 0, pz);
+    S.v.set(px, yOff, pz);
     S.s.set(1, hh, 1);
     S.m4.compose(S.v, S.q, S.s);
     S.body.setMatrixAt(i, S.m4);
@@ -2080,7 +2694,7 @@ function VLT_layout(S, lockK) {
     var cy = Math.cos(yaw), sy = Math.sin(yaw);
     for (var e2 = 0; e2 < 24; e2++) {
       var ci = VLT_EDGES[e2] * 3;
-      var cx = VLT_CORNERS[ci], cyy = VLT_CORNERS[ci + 1] * hh, cz = VLT_CORNERS[ci + 2];
+      var cx = VLT_CORNERS[ci], cyy = VLT_CORNERS[ci + 1] * hh + yOff, cz = VLT_CORNERS[ci + 2];
       pos[o++] = px + cx * cy + cz * sy;
       pos[o++] = cyy;
       pos[o++] = pz - cx * sy + cz * cy;
@@ -2099,7 +2713,15 @@ function VLT_motes(S, t) {
   /* the motes breathe with the beam: their radii are scaled by the same shell
      factor, so before the lock they live inside the thin thread instead of
      hanging in open air beside it. Still a pure function of t. */
-  var bs = lerp(0.34, 1, VLT_lockK(t));
+  /* LOCK IMPACT (b): across the lock window the radius factor overshoots to
+     x1.6 at lock centre and settles back to 1 exactly at VLT_LOCK1, so the
+     motes puff outward on the impact and the restT frame (0.8) is untouched.
+     A sine spike of t: zero at both ends, pure and scrub-exact. */
+  var burst = 1;
+  if (t > VLT_LOCK0 && t < VLT_LOCK1) {
+    burst = 1 + 0.6 * Math.sin(Math.PI * (t - VLT_LOCK0) / (VLT_LOCK1 - VLT_LOCK0));
+  }
+  var bs = lerp(0.34, 1, VLT_lockK(t)) * burst;
   for (var i = 0; i < n; i++) {
     var j = i * 4, k = i * 3;
     var a = b[j] + t * b[j + 3] * 0.55;
@@ -2125,8 +2747,8 @@ export const actInstrument = {
     S.col = new T.Color(); S.look = new T.Vector3();
 
     /* ---------------- the floor ---------------- */
-    var floor = new T.Mesh(new T.CircleGeometry(30, 72),
-      new T.MeshBasicMaterial({ map: VLT_floorTexture(T, R) }));
+    S.floorMat = new T.MeshBasicMaterial({ map: VLT_floorTexture(T, R) });
+    var floor = new T.Mesh(new T.CircleGeometry(30, 72), S.floorMat);
     floor.rotation.x = -Math.PI / 2;
     root.add(floor);
 
@@ -2135,14 +2757,16 @@ export const actInstrument = {
     var bandTex = VLT_bandTexture(T, R);
     var shadTex = VLT_ringShadowTexture(T, R);
     S.ringLightMats = [];
+    S.ringShadowMats = [];
     for (var d = 0; d < 3; d++) {
       var rr = VLT_RINGS[d].r, sz = (2 * rr) / 0.74;
-      var shad = new T.Mesh(new T.PlaneGeometry(sz * 1.06, sz * 1.06),
-        new T.MeshBasicMaterial({ map: shadTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+      var sm = new T.MeshBasicMaterial({ map: shadTex, transparent: true, depthWrite: false, opacity: 0.85 });
+      var shad = new T.Mesh(new T.PlaneGeometry(sz * 1.06, sz * 1.06), sm);
       shad.rotation.x = -Math.PI / 2;
       shad.position.y = 0.012 + d * 0.004;
       shad.renderOrder = 1;
       root.add(shad);
+      S.ringShadowMats.push(sm);
 
       var lm = new T.MeshBasicMaterial({
         map: bandTex, color: VLT_GREEN, transparent: true, opacity: 0.04,
@@ -2214,7 +2838,7 @@ export const actInstrument = {
     root.add(S.etch);
 
     /* every slab's edge line, all eighteen merged into ONE LineSegments whose
-       positions are rewritten only while the lock turns */
+       positions are rewritten only while the lock turns or the rings rise */
     S.edgePos = new Float32Array(VLT_N * 24 * 3);
     var egeo = new T.BufferGeometry();
     S.edgeAttr = new T.BufferAttribute(S.edgePos, 3);
@@ -2228,8 +2852,12 @@ export const actInstrument = {
     edges.renderOrder = 5;
     root.add(edges);
 
-    VLT_layout(S, 0);
-    S.lastLock = 0;
+    /* built sunk (the t=0 state); the guard sentinels below force the first
+       frame() to lay out at its true t, including the single reduced-motion
+       frame at restT, which lays out fully risen. */
+    VLT_layout(S, 0, 0, 0, 0);
+    S.lastLock = -1;
+    S.rise0 = -1; S.rise1 = -1; S.rise2 = -1;
 
     /* ---------------- the beam: where the direction is written ---------------- */
     var beamTex = VLT_beamTexture(T, R);
@@ -2335,12 +2963,24 @@ export const actInstrument = {
     var az = -1.2 + 3.49 * (0.15 * t + 0.85 * ease(clamp01(t / 0.92)));
     var ly = 5.3 * ease(clamp01((t - 0.50) / 0.38));
     var drift = ease(clamp01((t - 0.82) / 0.18));
+    /* LOCK IMPACT (a): a camera micro-drop, 0.12 units at the lock centre
+       (t=0.77), a sine spike of t that is exactly zero at both edges of the
+       lock window and everywhere outside it. Scrub-exact; the restT frame
+       (0.8) sits on the zero. */
+    var dip = 0;
+    if (t > VLT_LOCK0 && t < VLT_LOCK1) {
+      dip = 0.12 * Math.sin(Math.PI * (t - VLT_LOCK0) / (VLT_LOCK1 - VLT_LOCK0));
+    }
     c.position.set(
       Math.cos(az) * rad + ctx.pointer.x * 0.55 * drift,
-      alt - ctx.pointer.y * 0.35 * drift,
+      alt - dip - ctx.pointer.y * 0.35 * drift,
       Math.sin(az) * rad
     );
-    c.lookAt(S.look.set(0, ly, 0));
+    /* THE EXIT: over the last eight hundredths the look target tips up into
+       the blazing column (beam top is y 14, the high lamp at 11.5), so the
+       outgoing whip lands on the light. Position, fov and azimuth untouched. */
+    var tip = ease(clamp01((t - 0.92) / 0.08));
+    c.lookAt(S.look.set(0, ly + 7.2 * tip, 0));
     /* exact compare, not an epsilon: the lens must land on the same number
        whether t was arrived at cold or scrubbed through. Constant after 0.8,
        so this stops touching the projection at rest. */
@@ -2362,13 +3002,26 @@ export const actInstrument = {
     var lockK = VLT_lockK(t);
     var s0 = VLT_stepK(t, 0), s1 = VLT_stepK(t, 1), s2 = VLT_stepK(t, 2);
 
-    /* THE LOCK: all eighteen rotate into perfect radial alignment at once.
-       Matrices are rewritten only while lockK is actually changing, which is
-       the lock window and nowhere else. Scrubbing back re-jitters them. */
-    if (S.lastLock !== lockK) {
-      S.lastLock = lockK;
-      VLT_layout(S, lockK);
+    /* THE ENTRANCE + THE LOCK share the one layout writer. Rises are the
+       ring-by-ring emergence (outer first, all done by t=0.12); the lock is
+       the radial alignment at 0.74..0.80. Matrices are rewritten only on
+       frames where one of the four levels actually moved: outside the
+       entrance and lock windows every level is a constant and nothing
+       uploads. All compares EXACT (an epsilon breaks pure-function-of-t). */
+    var r0 = VLT_riseK(t, 0), r1 = VLT_riseK(t, 1), r2 = VLT_riseK(t, 2);
+    if (S.lastLock !== lockK || S.rise0 !== r0 || S.rise1 !== r1 || S.rise2 !== r2) {
+      S.lastLock = lockK; S.rise0 = r0; S.rise1 = r1; S.rise2 = r2;
+      VLT_layout(S, lockK, r0, r1, r2);
     }
+
+    /* the floor engraving fades up beneath the rising rings: the whole floor
+       page scales from black to full over the first tenth, reading through
+       the page's own fade-from-black. Constant 1 after 0.10. Pure t. */
+    S.floorMat.color.setScalar(ease(clamp01(t / 0.10)));
+    /* each ring's contact shadow arrives with its slabs, not before them */
+    S.ringShadowMats[0].opacity = 0.85 * r0;
+    S.ringShadowMats[1].opacity = 0.85 * r1;
+    S.ringShadowMats[2].opacity = 0.85 * r2;
 
     /* edge lines snap 0.22 -> 0.9; the etched rows rise to full. Both are
        single material uniforms. Above 1.0 on the emissive because ACES
@@ -2399,22 +3052,26 @@ export const actInstrument = {
     S.ringLightMats[1].opacity = Math.min(0.92, 0.04 + 0.30 * s1 + 0.55 * lockK);
     S.ringLightMats[2].opacity = Math.min(0.92, 0.04 + 0.30 * s2 + 0.55 * lockK);
 
+    /* THE EXIT: the beam flares over the last eight hundredths so the whip
+       out lands on the blaze the camera is tipping up into. Zero at restT. */
+    var exitK = ease(clamp01((t - 0.92) / 0.08));
+
     /* the beam: a faint thread through the descent, a hot column after the
        vault decides. The core is driven past 1.0 for ACES the same way. */
     var bs = lerp(0.34, 1, lockK);
     S.shell.scale.x = bs; S.shell.scale.z = bs;
-    S.shellMat.opacity = 0.05 + 0.03 * s2 + 0.5 * lockK;
-    S.coreMat.opacity = Math.min(1, 0.3 + 0.06 * (s0 + s1 + s2) + 0.55 * lockK);
-    var hot = 1 + 1.6 * lockK;
+    S.shellMat.opacity = 0.05 + 0.03 * s2 + 0.5 * lockK + 0.28 * exitK;
+    S.coreMat.opacity = Math.min(1, 0.3 + 0.06 * (s0 + s1 + s2) + 0.55 * lockK + 0.3 * exitK);
+    var hot = 1 + 1.6 * lockK + 2.6 * exitK;
     S.coreMat.color.setRGB(VLT_GR * hot, VLT_GG * hot, VLT_GB * hot);
 
-    S.lampHigh.intensity = 5 + 4 * s0 + 5 * s1 + 6 * s2 + 130 * lockK;
+    S.lampHigh.intensity = 5 + 4 * s0 + 5 * s1 + 6 * s2 + 130 * lockK + 110 * exitK;
     S.lampLow.intensity = 3 + 2 * (s0 + s1 + s2) + 60 * lockK;
 
     /* after the lock, stillness: only the air moves, and only with t.
        (the fog write lives in camera(), which survives the reduced-motion
        frame() latch across act re-entries) */
-    S.moteMat.opacity = 0.22 + 0.5 * lockK;
+    S.moteMat.opacity = 0.22 + 0.5 * lockK + 0.2 * exitK;
     if (S.lastMoteT !== t) {
       S.lastMoteT = t;
       VLT_motes(S, t);
@@ -2457,6 +3114,16 @@ function kilnBarY(t) {
   return KILN_SUNK;
 }
 
+/* THE ENTRANCE. the slab is not in place: the chains lower it in from six above its
+   final seat across the first tenth of the act. smooth in-out, so the fade from black
+   hides the top of the travel and the visible half of the descent decelerates into the
+   touchdown. zero from 0.10 on, so restT and the whole protected middle see the act
+   exactly as it shipped. */
+function kilnDrop(t) {
+  if (t >= 0.10) return 0;
+  return 6 * (1 - ease(t / 0.10));
+}
+
 /* the hoist takes the fired slab off the firebox. lift first, then travel: a trolley,
    not a magic float. both are pure functions of t. */
 function kilnLift(t) {
@@ -2465,12 +3132,63 @@ function kilnLift(t) {
   return 0.95;
 }
 
-/* THE HAND-OFF. the object leaves down the hall and out through the lit opening, and it
-   is still accelerating when the act cuts. nothing here comes to rest. */
+/* the down-hall travel, kept verbatim for the stretch the shipped act uses it on
+   (t <= 0.90, via kilnLoadPath below) */
 function kilnTravel(t) {
   if (t < 0.86) return 0;
   var u = (t - 0.86) / 0.14;
   return -12.6 * (0.62 * u + 0.38 * u * u);
+}
+
+/* THE HAND-OFF, on axis. one function gives the whole path of the load, and frame()
+   and camera() both read it, the same law as the seam. Up to 0.88 it is the shipped
+   lift-and-travel. Over 0.88..0.90 the trolley brakes: the down-hall drift stops.
+   From 0.90 the crane brings the fired slab BACK up the aisle, toward and past the
+   lens on its left, still accelerating when the act cuts, so the outgoing whip lands
+   on the slab in motion instead of on an empty hall. */
+var KILN_Z_BRAKE = -2.05;
+function kilnLoadPath(t, small, v) {
+  var y = kilnLift(t) + kilnDrop(t);
+  if (t < 0.88) { v.set(0, y, kilnTravel(t)); return v; }
+  if (t < 0.90) {
+    v.set(0, y, lerp(kilnTravel(0.88), KILN_Z_BRAKE, easeOut((t - 0.88) / 0.02)));
+    return v;
+  }
+  /* the lateral has to clear the LENS, not just the aisle. the load group is 4.75 wide
+     (slab 1.65 left of centre, naming plate 3.1 right of it, and the plate ships with the
+     slab), the camera stands near x -1.7 with the pointer at its left extreme, and the two
+     cross in z at about a = 0.75, where the load has only covered three quarters of its
+     lateral. at -4.4 the group STRADDLED the desktop camera at the crossing: a scrub parked
+     there was a full-screen clipped cross-section of slab. -7.8 puts the plate edge 0.73
+     clear of the worst-case lens at the crossing (verified numerically, t 0.90..1.0 x both
+     pointer extremes), and still clears the timber stacks at x -8.2 by over 1.6 while any
+     of them are ahead of it. */
+  var u = (t - 0.90) / 0.10, a = u * u;              /* accelerating at the cut */
+  v.set(lerp(0, small ? -5.4 : -7.8, a),
+        y + lerp(0, 0.8, ease(u)),
+        lerp(KILN_Z_BRAKE, small ? 23 : 15.5, a));
+  return v;
+}
+
+/* IMPACT FRAMES. spike functions of t: zero outside their window, no state, scrub-exact.
+   the thud when the chains set the slab down, and a sideways nudge as the mass passes
+   the lens on the way out. both under 0.3 of a unit, both clear of the protected middle. */
+/* the thud is all attack-after-contact: the slab seats at exactly t 0.10 (kilnDrop hits
+   zero there), the kick lands full-depth on that same frame and only decays. a symmetric
+   spike centred past the contact opened at 0.090 and had dipped the lens 0.11 before the
+   slab had finished its last two centimetres: a camera that flinches BEFORE the impact is
+   decoration, not physics. zero again by 0.118, clear of the protected 0.12 boundary. */
+function kilnKickY(t) {
+  var d = t - 0.10;
+  if (d < 0 || d >= 0.018) return 0;
+  var p = 1 - d / 0.018;
+  return -0.22 * p * p;
+}
+function kilnKickX(t) {
+  var d = Math.abs(t - 0.972);
+  if (d >= 0.014) return 0;
+  var p = 1 - d / 0.014;
+  return 0.15 * p * p;
 }
 
 /* the room genuinely goes dark before the firing, so the dwell reads as intended silence */
@@ -2481,6 +3199,12 @@ function kilnLamp(t) {
   if (t < 0.735) return lerp(0.26, 1.9, easeOut((t - 0.70) / 0.035));
   if (t < 0.83) return lerp(1.9, 1.05, ease((t - 0.735) / 0.095));
   return lerp(1.05, 0.92, ease((t - 0.83) / 0.17));
+}
+
+/* the lanterns warm up through the entrance: the hall starts dark except the ember bed */
+function kilnEntranceLamp(t) {
+  if (t >= 0.10) return 1;
+  return lerp(0.05, 1, ease(t / 0.10));
 }
 
 /* the ember bed under the grate: the heat has a visible source and its own curve */
@@ -2508,12 +3232,15 @@ function kilnSparkRun(t) {
 }
 
 /* the chain, laid from a fixed head in the roof down to the slab. rewritten only while
-   the hoist is actually working, guarded on a quantised key. */
-function kilnLayChain(S, headY, z) {
+   the head is actually moving, guarded on a quantised key. positions are LOCAL to a
+   pivot group parked at the chain head height, so a drag on the seam can sway the whole
+   fall of chain about the point it actually hangs from. x rides with the load so the
+   chains go out with it on the exit. */
+function kilnLayChain(S, headY, z, x) {
   var n = S.chainN, span = Math.max(0.6, KILN_CHAIN_TOP - headY), step = span / n;
   for (var c = 0; c < 2; c++) {
     for (var i = 0; i < n; i++) {
-      S.v3.set(c ? KILN_CHAIN_X : -KILN_CHAIN_X, KILN_CHAIN_TOP - (i + 0.5) * step, z);
+      S.v3.set(x + (c ? KILN_CHAIN_X : -KILN_CHAIN_X), -(i + 0.5) * step, z);
       S.m4.compose(S.v3, (i % 2) ? S.qA : S.qB, S.one);
       S.chains.setMatrixAt(c * n + i, S.m4);
     }
@@ -2534,6 +3261,7 @@ export const actKiln = {
     var v = new T.Vector3(), s = new T.Vector3(1, 1, 1), col = new T.Color();
     S.m4 = new T.Matrix4(); S.v3 = new T.Vector3(); S.one = new T.Vector3(1, 1, 1);
     S.col = new T.Color(); S.ndc = new T.Vector3();
+    S.loadV = new T.Vector3();
     S.qA = new T.Quaternion().setFromEuler(new T.Euler(0, Math.PI / 2, 0));
     S.qB = new T.Quaternion();
 
@@ -2810,13 +3538,19 @@ export const actKiln = {
     root.add(trolley);
     S.trolley = trolley;
 
+    /* the chains hang inside a pivot group parked at the head height, so a pull on the
+       seam can sway the fall of chain about the point it hangs from (see frame()) */
+    S.chainPivot = new T.Group();
+    S.chainPivot.position.set(0, KILN_CHAIN_TOP, 0);
+    root.add(S.chainPivot);
+
     S.chainN = small ? 22 : 44;
     var chains = new T.InstancedMesh(new T.TorusGeometry(0.05, 0.016, 4, 6), postMat, S.chainN * 2);
     chains.instanceMatrix.setUsage(T.DynamicDrawUsage);
-    root.add(chains);
+    S.chainPivot.add(chains);
     S.chains = chains;
     S.chainKey = -1;
-    kilnLayChain(S, 4.70, 0);
+    kilnLayChain(S, 4.70, 0, 0);
 
     /* ---------------------------------------------------------------------- the rack */
     /* eleven unfired slabs on a rail at the back of the first bay: everything not yet
@@ -2860,11 +3594,28 @@ export const actKiln = {
     e.set(0, 0, 0);
 
     /* ------------------------------------------------------------------- the seam itself */
-    var bar = new T.Mesh(new T.PlaneGeometry(6.8, 0.1),
+    /* the bar is a HANDLE and is dressed as one: slightly thickened, with an end cap
+       riding each end, the whole assembly in one group so it moves as one thing. the
+       caps share one material so the handle fades as one thing too. */
+    var seamGrp = new T.Group();
+    seamGrp.position.set(0, 3, 0);
+    root.add(seamGrp);
+    S.seamGrp = seamGrp;
+
+    var bar = new T.Mesh(new T.PlaneGeometry(6.8, 0.16),
       new T.MeshBasicMaterial({ color: 0xFFC98A, transparent: true, depthWrite: false }));
-    bar.position.set(0, 3, 0.14);
-    root.add(bar);
+    bar.position.set(0, 0, 0.14);
+    seamGrp.add(bar);
     S.bar = bar;
+
+    S.capMat = new T.MeshBasicMaterial({ color: 0xFFC98A, transparent: true, depthWrite: false });
+    var capGeo = new T.BoxGeometry(0.18, 0.32, 0.18);
+    var capL = new T.Mesh(capGeo, S.capMat);
+    capL.position.set(-3.4, 0, 0.14);
+    seamGrp.add(capL);
+    var capR = new T.Mesh(capGeo, S.capMat);
+    capR.position.set(3.4, 0, 0.14);
+    seamGrp.add(capR);
 
     var barLight = new T.PointLight(0xFF7A18, 60, 12, 2);
     barLight.position.set(0, 3, 1.2);
@@ -3012,7 +3763,9 @@ export const actKiln = {
        heat is motionless in frame while the floor, the firebox and the naming plate slide
        down out of shot. At the firing it refuses to follow the seam back down: the height
        holds, the lens whips open and the hall turns out to have been that big all along.
-       Then it comes down and lets the finished object go. */
+       Then it comes down and PANS WITH the finished object as the crane brings it past
+       the lens, so the cut lands on the slab in motion. The pan and the two kicks are
+       zero everywhere inside 0.12..0.88: the crane grammar of the middle is untouched. */
     var t = ctx.t, c = ctx.camera, S = ctx.actState;
     var seam = kilnBarY(t);
     var small = ctx.small;
@@ -3048,7 +3801,36 @@ export const actKiln = {
     var lookZ = t < 0.755 ? 0 : lerp(0, -3.4, ease((t - 0.755) / 0.245));
 
     c.position.set(CX + ctx.pointer.x * 0.5, camY + ctx.pointer.y * -0.18, dist * DS);
-    c.lookAt(LX, lookY, lookZ);
+
+    /* THE EXIT PAN. the camera reads the load off the same law frame() drives it with, so
+       they can never disagree about where the delivery is. The look target blends onto the
+       slab and tracks it up the aisle; it is clamped to stay in front of the lens so the
+       whip lands on the object passing lens-left and the camera never flips through it. */
+    var ex = clamp01((t - 0.90) / 0.10);
+    if (ex > 0) {
+      kilnLoadPath(t, small, S.loadV);
+      /* the lens steps RIGHT as the mass comes up the aisle on its left: the step widens
+         the pass on the exact axis the delivery travels, so the slab clears the camera at
+         both pointer extremes (a leftward step put the lens IN the slab's path on desktop).
+         a smooth function of t, not a conditional clamp, so a moving pointer can never
+         pop the frame at the crossing. */
+      c.position.x += lerp(0, 0.9, ease(ex));
+      var pan = 0.9 * ease(ex);
+      var camZ = dist * DS;
+      var tzRaw = S.loadV.z, tzMax = camZ - 2.5;
+      if (tzRaw > tzMax) tzRaw = tzMax;
+      c.lookAt(lerp(LX, S.loadV.x, pan),
+               lerp(lookY, S.loadV.y + 2.3, pan),
+               lerp(lookZ, tzRaw, pan));
+    } else {
+      c.lookAt(LX, lookY, lookZ);
+    }
+
+    /* impact frames: the touchdown thud, and the nudge as the mass passes the lens.
+       applied AFTER lookAt so they shift the frame, not the aim. */
+    c.position.y += kilnKickY(t);
+    c.position.x += kilnKickX(t);
+
     if (Math.abs(c.fov - fov) > 0.001) { c.fov = fov; c.updateProjectionMatrix(); }
 
     S.camStamp = performance.now();       /* the cursor only listens while this act is live */
@@ -3080,17 +3862,29 @@ export const actKiln = {
     }
     S.seamY = seam;
 
-    S.below.constant = seam;
-    S.above.constant = -seam;
+    /* the clip rides the entrance drop, so the slab comes down the hall WHOLE, all
+       drawing: the line of heat has nothing to say about it until it is seated.
+       kilnDrop is zero from 0.10 on, so the bisection of the middle is untouched. */
+    var drop = kilnDrop(t);
+    S.below.constant = seam + drop;
+    S.above.constant = -(seam + drop);
 
-    /* ---- the fired object comes off the firebox and goes out down the hall */
-    var lift = kilnLift(t), travel = kilnTravel(t);
-    S.load.position.set(0, lift, travel);
-    S.trolley.position.z = travel;
+    /* ---- the load: lowered in by the chains, seated, fired, then carried out past the
+       lens. one law gives the whole path (kilnLoadPath), shared with camera(). */
+    kilnLoadPath(t, ctx.small, S.loadV);
+    S.load.position.copy(S.loadV);
+    S.trolley.position.z = S.loadV.z < 6.7 ? S.loadV.z : 6.7;
 
-    var headY = 4.70 + lift;
-    var ck = Math.round(headY * 300) * 100000 + Math.round(travel * 300);
-    if (ck !== S.chainKey) { S.chainKey = ck; kilnLayChain(S, headY, travel); }
+    var headY = 4.70 + S.loadV.y;
+    var ck = Math.round(headY * 300) * 1e10 +
+             (Math.round(S.loadV.z * 300) + 5000) * 1e5 +
+             (Math.round(S.loadV.x * 300) + 5000);
+    if (ck !== S.chainKey) { S.chainKey = ck; kilnLayChain(S, headY, S.loadV.z, S.loadV.x); }
+
+    /* the chains answer the pull: a sway about the head, proportional to the drag and
+       damped by the same window that gates the drag itself. dy is input state, absolute
+       and bounded, so this is as scrub-exact as the seam it hangs beside. */
+    S.chainPivot.rotation.z = -(ctx.grab ? ctx.grab.dy : 0) * win * 0.05;
 
     /* the drawing of the object is gone once the object is fired: drop three draw calls.
        keyed off the seam itself, so it can never pop a surviving sliver away */
@@ -3100,16 +3894,21 @@ export const actKiln = {
     }
 
     /* ---- the bar, and the light it carries. after the firing the same light becomes the
-       object's own heat and travels with it, so the hall is lit by the thing leaving it. */
-    var barVis = t < 0.81;
-    if (S.bar.visible !== barVis) S.bar.visible = barVis;
-    S.bar.position.y = seam;
-    S.bar.material.opacity = 1 - clamp01((t - 0.78) / 0.03);
+       object's own heat and travels with it, so the hall is lit by the thing leaving it.
+       the handle group (bar plus end caps) fades IN on the same ramp that arms the pull,
+       so the affordance and the interaction arrive as one thing. */
+    var barVis = t > 0.045 && t < 0.81;
+    if (S.seamGrp.visible !== barVis) S.seamGrp.visible = barVis;
+    S.seamGrp.position.y = seam;
+    var barOp = (1 - clamp01((t - 0.78) / 0.03)) * clamp01((t - 0.05) / 0.05);
+    S.bar.material.opacity = barOp;
+    S.capMat.opacity = barOp;
 
     var dep = clamp01((t - 0.755) / 0.075);
-    var lightY = lerp(seam, 2.35 + lift, dep);
-    var lightZ = lerp(1.2, travel + 0.5, dep);
-    S.barLight.position.set(0, lightY, lightZ);
+    var lightX = lerp(0, S.loadV.x, dep);
+    var lightY = lerp(seam, 2.35 + S.loadV.y, dep);
+    var lightZ = lerp(1.2, S.loadV.z + 0.5, dep);
+    S.barLight.position.set(lightX, lightY, lightZ);
     S.barLight.distance = lerp(12, 26, dep);
 
     var flash = clamp01((t - 0.70) / 0.02);
@@ -3118,6 +3917,8 @@ export const actKiln = {
     var barI = t < 0.70 ? 44 * flick
              : t < 0.72 ? lerp(44, 420, easeOut(flash))
              : lerp(420, 130, ease(fade));
+    /* through the entrance the seam light breathes in with the lanterns */
+    if (t < 0.10) barI *= lerp(0.12, 1, ease(clamp01((t - 0.03) / 0.07)));
     S.barLight.intensity = barI;
     S.barLight.color.copy(S.lightCol).lerp(S.hotCol, clamp01((t - 0.70) / 0.04) * (1 - clamp01((t - 0.80) / 0.12)));
 
@@ -3139,15 +3940,20 @@ export const actKiln = {
       pos[i * 3 + 2] = Math.sin(S.sang[i]) * rad * 0.5;
     }
     S.sparkAttr.needsUpdate = true;
-    S.sparks.position.set(0, lerp(seam, 1.9 + lift, dep), lerp(0, travel, dep));
+    S.sparks.position.set(lerp(0, S.loadV.x, dep),
+                          lerp(seam, 1.9 + S.loadV.y, dep),
+                          lerp(0, S.loadV.z, dep));
     S.sparks.material.opacity = lerp(1, 0.8, clamp01((t - 0.88) / 0.12));
 
-    /* ---- the fire, the lanterns, the air */
+    /* ---- the fire, the lanterns, the air. the entrance ramp multiplies every hall light
+       and leaves the ember bed alone: the hall starts dark except the fire under the grate,
+       and the lanterns warm up as the chains pay the slab down. one everywhere from 0.10. */
+    var entL = kilnEntranceLamp(t);
     var em = kilnEmber(t);
     S.bed.material.color.setRGB(Math.min(em, 3), Math.min(em * 0.86, 3), Math.min(em * 0.7, 3));
-    S.key.intensity = 0.6 + 1.4 * Math.min(em, 1.6);
+    S.key.intensity = (0.6 + 1.4 * Math.min(em, 1.6)) * lerp(0.35, 1, entL);
 
-    var gain = kilnLamp(t) * (1 + Math.sin(clock * 7.3) * 0.03 + Math.sin(clock * 2.1) * 0.02);
+    var gain = kilnLamp(t) * (1 + Math.sin(clock * 7.3) * 0.03 + Math.sin(clock * 2.1) * 0.02) * entL;
     S.lan[0].intensity = 40 * gain;
     S.lan[1].intensity = 40 * gain;
     S.amb.intensity = 2.4 * gain;
@@ -3178,13 +3984,20 @@ export const actKiln = {
        the eleven colours are provably identical frame to frame. */
     var hot = t > 0.68;
     if (hot) {
-      var rk = Math.round(fire * 200) * 100000 + Math.round(travel * 200);
+      /* the z term is clamped at -1 before quantising: pass is provably zero for any
+         z above -1, so once the delivery has left the rack's window the key goes inert
+         and the whole outbound sweep (z -1 up to +15.5) uploads nothing. quantising the
+         raw z instead re-uploaded eleven identical whites on every scrolled frame of the
+         last seventh of the act. the reachable window below (-2.05 to -1, the brake) is
+         where the colours genuinely move, and there the key still tracks z exactly. */
+      var zk = S.loadV.z > -1 ? -1 : S.loadV.z;
+      var rk = Math.round(fire * 200) * 100000 + Math.round(zk * 200);
       if (rk !== S.rackKey) {
         S.rackKey = rk;
         var col = S.col;
         for (var r = 0; r < S.RACK; r++) {
           var near = clamp01(1 - Math.abs(S.rackX[r]) / 8);      /* nearest the aisle */
-          var pass = clamp01(1 - Math.abs(travel + 6.5) / 5.5) * near;
+          var pass = clamp01(1 - Math.abs(S.loadV.z + 6.5) / 5.5) * near;
           var lick = clamp01(Math.max(fire * (0.35 + 0.65 * near), pass));
           col.setRGB(1 + lick * 0.45, 1 - lick * 0.16, 1 - lick * 0.34);
           S.rack.setColorAt(r, col);
@@ -3198,8 +4011,8 @@ export const actKiln = {
       S.rackHot = false; S.rackKey = -1;
     }
 
-    /* the contact shadow leaves with the object it belonged to */
-    S.contact.material.opacity = 1 - clamp01((t - 0.82) / 0.06);
+    /* the contact shadow arrives with the slab and leaves with it */
+    S.contact.material.opacity = (1 - clamp01((t - 0.82) / 0.06)) * lerp(0.3, 1, entL);
 
     /* soot: clock-driven like the sparks and the flicker, and it never touches state */
     S.motes.rotation.y = clock * 0.018;
@@ -3221,7 +4034,38 @@ export const actRecord = { id: "record", accent: null, dom: true };
  * 08 — THE LEDGER FIELD
  * Orthographic. No perspective, no vanishing point, and the whole world goes pale.
  * Camera: a lateral truck across a plan sheet. Scale: a city from altitude.
+ *
+ * v7 choreography, surgery only:
+ *   ENTRANCE  t 0.00–0.10  the survey draws itself: a straightedge sweeps the
+ *             sheet once and the drawn field appears behind its trailing edge.
+ *             Implemented as a sliding cover plane; the texture is never redrawn.
+ *   IMPACT    t 0.68       the tower completes: the claim bracket snaps in
+ *             corner by corner (four thresholds), the contact shadow stamps,
+ *             and the camera takes one small vertical kick.
+ *   EXIT      t 0.88–1.00  the truck reverses and accelerates back onto the
+ *             claimed plot, zoom easing in, so the outgoing whip lands on the
+ *             tower row.
+ * Everything is a pure function of t. Nothing between 0.12 and 0.88 changed.
  * ========================================================================== */
+
+/* Camera keys live at module scope so camera() allocates nothing per frame.
+   The old sixth key (x 168, zoom 0.55, riding off onto unclaimed ground) is
+   gone: the exit is now a hand-off, and it lands on the one built thing. */
+var LEDGER_KEYS = [
+  { t: 0.00, x: -180, zoom: 0.32 },
+  { t: 0.24, x: -86, zoom: 0.50 },
+  { t: 0.48, x: -4, zoom: 0.88 },
+  { t: 0.70, x: 34, zoom: 1.30 },
+  { t: 0.88, x: 86, zoom: 0.90 }
+];
+
+/* the straightedge's trailing edge, in world x, as a pure function of t.
+   Starts past the left rim of the widest viewport, ends past the sheet's own
+   right edge, constant rate: a survey instrument moves like an instrument. */
+function ledgerRevealX(t) {
+  return lerp(-390, 470, clamp01(t / 0.16));
+}
+
 export const actLedger = {
   id: "ledger", accent: "#B82A14", bg: 0xDDE0E4, ortho: true, restT: 0.72, noGrade: true,
   fog: function (T) { return new T.Fog(0xDDE0E4, 90, 340); },
@@ -3348,18 +4192,22 @@ export const actLedger = {
     mark.rotation.x = -Math.PI / 2; mark.position.set(0, 0.06, 4.2);
     root.add(mark);
 
-    /* registration acquired on arrival, released once the claim lands */
+    /* THE CONTACT SHADOW. it does not fade in with the build: it stamps, all at
+       once, the frame the tower completes. weight arriving is an event. */
+    var stamp = new T.Mesh(new T.PlaneGeometry(11.5, 8.2),
+      new T.MeshBasicMaterial({
+        map: radialShadow(T, ctx.renderer),
+        transparent: true, opacity: 0, depthWrite: false
+      }));
+    stamp.rotation.x = -Math.PI / 2; stamp.position.set(0, 0.045, 0);
+    root.add(stamp); S.stamp = stamp;
+
+    /* registration acquired on arrival, released once the claim lands. the four
+       corner brackets used to be baked into this texture; they are meshes now,
+       because they no longer arrive together (see the impact frames in frame()). */
     var regTex = makeTexture(T, ctx.renderer, 512, 384, function (g, w, h) {
       g.clearRect(0, 0, w, h);
-      g.strokeStyle = "#B82A14"; g.lineWidth = 6;
-      var L = 74;
-      [[18, 18, 1, 1], [w - 18, 18, -1, 1], [18, h - 18, 1, -1], [w - 18, h - 18, -1, -1]]
-        .forEach(function (P) {
-          g.beginPath();
-          g.moveTo(P[0] + P[2] * L, P[1]); g.lineTo(P[0], P[1]);
-          g.lineTo(P[0], P[1] + P[3] * L); g.stroke();
-        });
-      g.lineWidth = 3;
+      g.strokeStyle = "#B82A14"; g.lineWidth = 3;
       g.beginPath(); g.arc(w / 2, h / 2, 54, 0, 7); g.stroke();
       g.font = '500 22px "Martian Mono", ui-monospace, monospace';
       g.fillStyle = "#B82A14";
@@ -3370,36 +4218,99 @@ export const actLedger = {
     reg.rotation.x = -Math.PI / 2; reg.position.set(0, 0.07, 0);
     root.add(reg); S.reg = reg;
 
+    /* THE CLAIM BRACKET. one L, drawn once, four flat planes rotated into the
+       four corners. each snaps in at its own threshold of t with a 35 percent
+       overshoot that settles in 0.012 of t: a latch closing, not a fade.
+       thresholds end at 0.720 exactly, so the reduced-motion still frame
+       (restT 0.72) shows the bracket fully seated at scale one. */
+    var cornerTex = makeTexture(T, ctx.renderer, 128, 128, function (g) {
+      g.clearRect(0, 0, 128, 128);
+      g.strokeStyle = "#B82A14"; g.lineWidth = 16; g.lineCap = "square";
+      g.beginPath(); g.moveTo(118, 12); g.lineTo(12, 12); g.lineTo(12, 118); g.stroke();
+    });
+    var cornerMat = new T.MeshBasicMaterial({ map: cornerTex, transparent: true, opacity: 1 });
+    var cornerGeo = new T.PlaneGeometry(2.4, 2.4);
+    S.corners = []; S.cornerT = [0.680, 0.692, 0.700, 0.708];
+    [[-5.7, -3.95, 0], [5.7, -3.95, -Math.PI / 2],
+     [5.7, 3.95, Math.PI], [-5.7, 3.95, Math.PI / 2]].forEach(function (P) {
+      var cm = new T.Mesh(cornerGeo, cornerMat);
+      cm.rotation.set(-Math.PI / 2, 0, P[2]);
+      cm.position.set(P[0], 0.075, P[1]);
+      cm.visible = false;
+      root.add(cm); S.corners.push(cm);
+    });
+    S.cornerMat = cornerMat;
+
+    /* ENTRANCE RIG. the survey is fully drawn from the first frame; what moves
+       is a paper-coloured cover plane whose left edge is the straightedge's
+       trailing edge. the bar crosses the sheet once, the cover slides off with
+       it, and the drawn field is simply THERE behind it. no texture is ever
+       redrawn, and past t 0.17 both objects are gone from the draw entirely. */
+    var cover = new T.Mesh(new T.PlaneGeometry(900, 620),
+      new T.MeshBasicMaterial({ color: 0xDDE0E4 }));
+    cover.rotation.x = -Math.PI / 2;
+    cover.position.set(60, 0.085, 0);
+    root.add(cover); S.cover = cover;
+
+    var bar = new T.Mesh(new T.BoxGeometry(0.7, 0.5, 444),
+      new T.MeshBasicMaterial({ color: 0x2A2E35, transparent: true, opacity: 1 }));
+    bar.position.set(-390, 0.35, 0);
+    root.add(bar); S.bar = bar;
+
     root.add(new T.HemisphereLight(0xFFFFFF, 0xBFC5CC, 2.2));
     var dl = new T.DirectionalLight(0xFFFFFF, 0.9); dl.position.set(-30, 40, 20); root.add(dl);
   },
 
   camera: function (ctx) {
     /* orthographic. no perspective, no vanishing point, so the only cues are lateral
-       travel and zoom. it ends looking at unclaimed ground, which is the point. */
-    var KEYS = [
-      { t: 0.00, x: -180, zoom: 0.32 },
-      { t: 0.24, x: -86, zoom: 0.50 },
-      { t: 0.48, x: -4, zoom: 0.88 },
-      { t: 0.70, x: 34, zoom: 1.30 },
-      { t: 0.88, x: 86, zoom: 0.90 },
-      { t: 1.00, x: 168, zoom: 0.55 }
-    ];
+       travel and zoom. the truck runs right until 0.88; then it turns and comes back. */
     var t = ctx.t, i = 0;
-    while (i < KEYS.length - 2 && t > KEYS[i + 1].t) i++;
-    var a = KEYS[i], b = KEYS[i + 1];
+    while (i < LEDGER_KEYS.length - 2 && t > LEDGER_KEYS[i + 1].t) i++;
+    var a = LEDGER_KEYS[i], b = LEDGER_KEYS[i + 1];
     var k = ease(clamp01((t - a.t) / Math.max(1e-6, b.t - a.t)));
     var x = lerp(a.x, b.x, k), zoom = lerp(a.zoom, b.zoom, k);
+
+    /* EXIT. cubic ease-in from a standing start at 0.88, so the reversal is
+       imperceptible until ~0.92 and the truck is at its fastest the frame the
+       page cuts: the whip lands on the tower row, zoom easing in as it closes. */
+    if (t > 0.88) {
+      var ke = clamp01((t - 0.88) / 0.12);
+      ke = ke * ke * ke;
+      x = lerp(86, 2, ke);
+      zoom = lerp(0.90, 1.34, ke);
+    }
+
+    /* IMPACT KICK. one vertical thud the frame the tower completes and the
+       shadow stamps: a sine spike, zero outside [0.68, 0.706], scrub-exact. */
+    var kick = 0;
+    if (t > 0.68 && t < 0.706) kick = Math.sin(((t - 0.68) / 0.026) * Math.PI) * 0.24;
+
     var c = ctx.camera;
-    c.position.set(x, 90, 120);
+    c.position.set(x, 90 - kick, 120);
     c.lookAt(x, 0, 0);
     if (Math.abs(c.zoom - zoom) > 0.0005) { c.zoom = zoom; c.updateProjectionMatrix(); }
-    ctx.actState.headX = x;
+    /* the survey head never retreats: when the exit truck turns back toward the
+       claim, the spent field stays spent. ground taken is not returned. */
+    ctx.actState.headX = t > 0.88 ? 86 : x;
   },
 
   frame: function (ctx) {
     var S = ctx.actState, t = ctx.t, col = S.__c || (S.__c = new ctx.THREE.Color());
     var head = S.headX != null ? S.headX : -190;
+
+    /* ENTRANCE. the straightedge crosses the sheet once; the field appears
+       behind its trailing edge. pure functions of t: the bar's position, the
+       cover's position, and two visibility flags. the bar fades in its last
+       fraction so no viewport width ever sees it blink out; the cover is
+       dismissed only after its edge has left the sheet entirely. */
+    var reveal = ledgerRevealX(t);
+    S.cover.visible = t < 0.17;
+    S.cover.position.x = reveal + 450;
+    S.bar.visible = t < 0.105;
+    S.bar.position.x = reveal;
+    S.bar.material.opacity = 1 - clamp01((t - 0.085) / 0.02);
+    /* the closed stack surfaces only after the straightedge has drawn past it */
+    S.plates.visible = reveal > 6;
 
     /* the ground the survey has already passed is spent, and cannot be built on again */
     S.hatch.material.opacity = 0.55;
@@ -3427,12 +4338,65 @@ export const actLedger = {
     S.tower.scale.y = Math.max(0.004, k);
     S.tower.position.y = 8.5 * k;
     S.cap.position.y = 17 * k + 0.06;
-    S.reg.material.opacity = clamp01((t - 0.38) / 0.14) * (1 - clamp01((t - 0.92) / 0.08));
+
+    /* IMPACT FRAMES. the tower's build ends at t 0.68. the claim bracket snaps
+       in corner by corner at four thresholds, each corner landing oversized and
+       seating in 0.012 of t; the contact shadow stamps at the first threshold
+       and settles. all pure in t: scrub back and the claim un-latches. */
+    var regFade = 1 - clamp01((t - 0.92) / 0.08);
+    for (var c3 = 0; c3 < 4; c3++) {
+      var Ti = S.cornerT[c3], cm = S.corners[c3];
+      cm.visible = t >= Ti;
+      if (cm.visible) {
+        var cs = 1 + 0.35 * (1 - clamp01((t - Ti) / 0.012));
+        cm.scale.set(cs, cs, 1);
+      }
+    }
+    S.cornerMat.opacity = regFade;
+    S.stamp.material.opacity = t < 0.68
+      ? 0
+      : 0.55 + 0.30 * (1 - clamp01((t - 0.68) / 0.04));
+
+    S.reg.material.opacity = clamp01((t - 0.38) / 0.14) * regFade;
   }
 };
 
 /* ============================================================================
  * 09 — THE COMMISSION : module-scope furniture
+ *
+ * v7 surgery — entrance and end-card support only. The verdict between t 0.12
+ * and 0.84 (dead-stop camera, rake, strike, salvage pile, proof pull) is the
+ * approved act and is untouched.
+ *
+ *   ENTRANCE t 0.00..0.10  black. The key lamp SWINGS ON: it is already at its
+ *                          hard-left travel start (the rail sweep begins at
+ *                          x -11 at t 0), so the swing is the lamp's intensity
+ *                          running 0 -> full across the window while the rake
+ *                          angle is at its shallowest. Staged reveal, all pure
+ *                          t: the plinth edge draws first (0.015..0.05), then
+ *                          the slab silhouette (0.05..0.09), the inked strip
+ *                          fades up under the light (0.04..0.10), and the rim
+ *                          and fill lights arrive only at the window's end
+ *                          (0.06..0.10). Big silhouette moves early, detail
+ *                          late, so it reads through the page's fade-up.
+ *   IMPACT               NONE ADDED. The camera stops dead at t 0.60 and never
+ *                          writes position again - that stillness is the act's
+ *                          signature - and the strike at 0.62 lands after the
+ *                          stop, so a kick there would break the one rule the
+ *                          act exists to keep. The lamp arriving out of black
+ *                          is the entrance's own impact.
+ *   END-CARD t >= 0.86    this is the last act: no exit whip, no hand-off
+ *                          object driven at the lens. The page DOM fades the
+ *                          canvas to black for the credits card, so the scene
+ *                          completes its rest instead of fighting it: the mote
+ *                          column's slow turn freezes at t 0.86, and the sheet
+ *                          settle + the light hand-over (still starting at
+ *                          0.90, after the pull ends - the pull's timing is
+ *                          law) now complete at t 0.98 = restT rather than at
+ *                          1.00, so the final two percent of scroll, and the
+ *                          reduced-motion still, hold ONE finished frame:
+ *                          lights settled, cold air, one page. No motion under
+ *                          the credits.
  *
  * The face of the slab is described ONCE, here, as a table of rectangles in
  * slab-local coordinates (origin at the slab centre, which sits at world y 1.1).
@@ -3591,7 +4555,9 @@ export const actCommission = {
   /* restT moved 0.75 -> 0.98: the reduced-motion still frame is rendered ONCE, and at
      0.75 it caught the proof sheet lying flat on the face with nothing having happened
      to it yet. At 0.98 the one frame a reduced-motion visitor gets is the act's payoff:
-     dead camera, cold counter-light up, the struck page down, the pull settled in front. */
+     dead camera, cold counter-light up, the struck page down, the pull settled in front.
+     (v7: the settle and the hand-over now COMPLETE at 0.98, so that one frame is the
+     fully finished state, every entrance ramp long since at 1.) */
   id: "commission", accent: "#E8C77A", bg: 0x08090B, fov: 40, restT: 0.98,
   fog: function (T) { return new T.FogExp2(0x08090B, 0.014); },
 
@@ -3697,37 +4663,42 @@ export const actCommission = {
     S.relief = relief; S.nRelief = nTotal; S.crossed = -1;
 
     /* the single hard colour field. deliberately NOT part of the relief: it is
-       the one thing on the face that does not change when the light does. */
+       the one thing on the face that does not change when the light does.
+       v7: transparent, because it is a MeshBasicMaterial and would burn through
+       the black at t 0 before the lamp has swung on. frame() fades it up inside
+       the entrance window and it sits at opacity 1 from t 0.10 for the rest of
+       the act. It does not overlap any relief rect in x, so the transparent
+       pass has nothing to mis-sort against. */
     var strip = new T.Mesh(new T.BoxGeometry(CMSN_STRIP[2], CMSN_STRIP[3], 0.02),
-      new T.MeshBasicMaterial({ color: 0xFF3B21 }));
+      new T.MeshBasicMaterial({ color: 0xFF3B21, transparent: true, opacity: 0 }));
     strip.position.set(CMSN_STRIP[0], CMSN_SLAB_Y + CMSN_STRIP[1], 0.20);
     root.add(strip);
+    S.strip = strip;
 
     var mark = new T.Mesh(new T.PlaneGeometry(0.46, 0.46),
       new T.MeshPhongMaterial({ map: cmsnMarkTexture(T, ctx.renderer), shininess: 24 }));
     mark.position.set(1.55, CMSN_SLAB_Y - 2.80, 0.19);
     root.add(mark);
 
-    /* A drawn silhouette for the slab and the plinth, merged into ONE
-       LineSegments so the black room cannot swallow the object's edge. */
-    var e1 = new T.EdgesGeometry(new T.BoxGeometry(4.4, 6.2, 0.22));
-    var e2 = new T.EdgesGeometry(new T.BoxGeometry(5.4, 1.2, 2.4));
-    var a1 = e1.attributes.position.array, a2 = e2.attributes.position.array;
-    var merged = new Float32Array(a1.length + a2.length);
-    for (i = 0; i < a1.length; i += 3) {
-      merged[i] = a1[i]; merged[i + 1] = a1[i + 1] + CMSN_SLAB_Y; merged[i + 2] = a1[i + 2];
-    }
-    for (i = 0; i < a2.length; i += 3) {
-      var o = a1.length + i;
-      merged[o] = a2[i]; merged[o + 1] = a2[i + 1] - 2.6; merged[o + 2] = a2[i + 2];
-    }
-    e1.dispose(); e2.dispose();
-    var outlineGeo = new T.BufferGeometry();
-    outlineGeo.setAttribute("position", new T.BufferAttribute(merged, 3));
-    var outline = new T.LineSegments(outlineGeo,
-      new T.LineBasicMaterial({ color: 0xE8C77A, transparent: true, opacity: 0.14 }));
-    root.add(outline);
-    S.outline = outline;
+    /* A drawn silhouette for the slab and the plinth, so the black room cannot
+       swallow the object's edge. v7: these shipped merged into ONE LineSegments;
+       they are now TWO, because the entrance names an order - the plinth edge
+       draws first, then the slab silhouette - and that order needs two opacity
+       channels. From t 0.10 on, frame() writes both from the same base value the
+       merged line used, so the act renders as it always did for the price of one
+       extra line draw. */
+    var lineMatP = new T.LineBasicMaterial({ color: 0xE8C77A, transparent: true, opacity: 0 });
+    var lineMatS = new T.LineBasicMaterial({ color: 0xE8C77A, transparent: true, opacity: 0 });
+    var outlineP = new T.LineSegments(
+      new T.EdgesGeometry(new T.BoxGeometry(5.4, 1.2, 2.4)), lineMatP);
+    outlineP.position.y = -2.6;
+    root.add(outlineP);
+    var outlineS = new T.LineSegments(
+      new T.EdgesGeometry(new T.BoxGeometry(4.4, 6.2, 0.22)), lineMatS);
+    outlineS.position.y = CMSN_SLAB_Y;
+    root.add(outlineS);
+    S.outlineP = outlineP;
+    S.outlineS = outlineS;
 
     /* ------------------------------------------------------- what was refused */
     /* The salvage pile stays grey for the whole act. The one leaning page is the
@@ -3868,8 +4839,11 @@ export const actCommission = {
        20 the object was lit at before. The face would have blown to flat white
        through the middle of its own crossing. frame() now holds irradiance
        constant by multiplying by d squared, so the only thing that travels is
-       the angle. */
-    var key = new T.SpotLight(0xFFE6B4, 20 * 156.65, 52, 0.66, 0.85, 2);
+       the angle.
+       v7: frame() also multiplies by the entrance ramp, so the lamp swings on
+       out of black across t 0..0.10 while standing at its hard-left travel
+       start. */
+    var key = new T.SpotLight(0xFFE6B4, 0, 52, 0.66, 0.85, 2);
     key.position.set(-11, 3.85, 5.30);
     key.target.position.set(0, 1, 0);
     if (!small) {
@@ -3890,9 +4864,14 @@ export const actCommission = {
     root.add(key); root.add(key.target);
     S.key = key;
 
-    var rim = new T.SpotLight(0xFF5A38, 700, 40, 0.75, 0.95, 2);
+    /* v7: the rim and the fill arrive at the END of the entrance window rather
+       than existing before the act does; frame() scales all three from stored
+       full values, and they are at full for every t >= 0.10 (so the reduced
+       motion still at restT is complete). */
+    var rim = new T.SpotLight(0xFF5A38, 0, 40, 0.75, 0.95, 2);
     rim.position.set(9, 4, -3.2); rim.target.position.set(0, 1, 0);
     root.add(rim); root.add(rim.target);
+    S.rim = rim; S.rimFull = 700;
 
     /* The counter-light. Zero for nine tenths of the act, then it comes up as the
        gold dies: the face cools and flattens while the object is handed over. */
@@ -3902,9 +4881,12 @@ export const actCommission = {
     S.cold = cold;
 
     /* very little fill, so the rake does the modelling and the relief reads */
-    var lift = new T.DirectionalLight(0x8894A6, 0.22);
+    var lift = new T.DirectionalLight(0x8894A6, 0);
     lift.position.set(2, 6, 10); root.add(lift);
-    root.add(new T.AmbientLight(0x232A34, 0.55));
+    S.lift = lift; S.liftFull = 0.22;
+    var amb = new T.AmbientLight(0x232A34, 0);
+    root.add(amb);
+    S.amb = amb; S.ambFull = 0.55;
   },
 
   camera: function (ctx) {
@@ -3915,6 +4897,8 @@ export const actCommission = {
        Zero roll on every axis for the whole act: a copy stand, not a drone.
        The lens is never scored here: a fov ramp on a forward dolly is act 01's
        signature and act 05's, and this act does not borrow either.
+       v7: no impact kicks were added anywhere in this act. Every beat that could
+       take one lands after t 0.60, and a kick is a position write.
 
        The offset and the dolly-back used to be gated on ctx.small, which is a
        WIDTH test, and what decides whether this act fits is ASPECT. A 768 wide
@@ -3944,6 +4928,23 @@ export const actCommission = {
   frame: function (ctx) {
     var S = ctx.actState, t = ctx.t, i;
 
+    /* ------------------------------------------------- v7 entrance, t 0..0.10 */
+    /* Black, then the key lamp swings on at its hard-left travel start. All of
+       these are pure clamped functions of t: every ramp reads 1 for t >= 0.10,
+       so from there to the end of the act they cost a handful of scalar writes
+       and change nothing - and the reduced-motion single frame at restT 0.98
+       gets the fully entered world (law 10). The page's own canvas fade covers
+       t 0..0.06, so the big silhouette moves land early and the detail (rim,
+       fill, the inked strip) lands late enough to read after the fade. */
+    var kOn = ease(clamp01(t / 0.10));                 /* the lamp swings on     */
+    var arrive = ease(clamp01((t - 0.06) / 0.04));     /* rim + fill, window end */
+    var edgeP = ease(clamp01((t - 0.015) / 0.035));    /* plinth edge first...   */
+    var edgeS = ease(clamp01((t - 0.05) / 0.04));      /* ...then slab silhouette */
+    S.strip.material.opacity = clamp01((t - 0.04) / 0.06);
+    S.rim.intensity = S.rimFull * arrive;
+    S.lift.intensity = S.liftFull * arrive;
+    S.amb.intensity = S.ambFull * arrive;
+
     /* -------------------------------------------------- the rake, linear in t */
     /* Linear on purpose: the floor is ruled so the travel is measurable, and a
        machine on a rail does not ease. It arrives at the stop at t 0.60 exactly,
@@ -3959,11 +4960,18 @@ export const actCommission = {
        sideways by up to five units and turns a deep narrow column into a wide
        shallow one. Leave the page sitting and scrub back and the dust is
        somewhere else at the same t. Driven from t it is still a slow turn and
-       it comes back exactly. */
-    S.beam.rotation.y = t * 0.9;
+       it comes back exactly.
+       v7: the turn PARKS at t 0.86 - min(), still pure t - so nothing in the
+       frame is moving under the end card. */
+    S.beam.rotation.y = Math.min(t, 0.86) * 0.9;
 
-    /* the outline exists only when the light is near enough to draw it */
-    S.outline.material.opacity = lerp(0.06, 0.30, 1 - clamp01(Math.abs(lampX) / 8));
+    /* the outline exists only when the light is near enough to draw it.
+       v7: two lines now (plinth, slab), each carrying the same base value the
+       merged line used, times its own entrance ramp. Identical to the shipped
+       look from t 0.09 on. */
+    var ob = lerp(0.06, 0.30, 1 - clamp01(Math.abs(lampX) / 8));
+    S.outlineP.material.opacity = ob * edgeP;
+    S.outlineS.material.opacity = ob * edgeS;
 
     /* THE FACE WARMS BEHIND THE LIGHT. The test is on sweep position, which is a
        pure function of t, and the whole buffer is rewritten from that test, so
@@ -4086,13 +5094,19 @@ export const actCommission = {
       S.sheetPos.needsUpdate = true;
       S.sheetNorm.needsUpdate = true;
     }
-    /* then the whole sheet steps forward and settles, square to a dead camera */
-    var settle = ease(clamp01((t - 0.90) / 0.10));
+    /* then the whole sheet steps forward and settles, square to a dead camera.
+       v7 end-card support: the settle and the hand-over below still begin at
+       0.90 - the pull owns everything up to there and its timing is law - but
+       they now COMPLETE at t 0.98, which is restT, instead of at 1.00. The DOM
+       is fading the canvas out for the credits card over the last stretch, and
+       a scene still ramping its lights under that fade fights it; finished at
+       0.98, the last two percent of scroll is one held frame at genuine rest. */
+    var settle = ease(clamp01((t - 0.90) / 0.08));
     S.sheet.position.z = lerp(CMSN_SHEET_Z, CMSN_SHEET_Z + 1.25, settle);
     S.sheet.position.y = lerp(CMSN_SLAB_Y, CMSN_SLAB_Y + 0.25, settle);
 
     /* ---------------------------------------------------- the light goes cold */
-    var hand = clamp01((t - 0.90) / 0.10);
+    var hand = clamp01((t - 0.90) / 0.08);
     /* Hold the EXPOSURE, travel the ANGLE. decay 2 on a lamp whose throw goes from
        12.5 units down to 6.0 and back to 7.0 was multiplying the object's light by
        four and a half through the middle of the sweep; the face blew to clipped
@@ -4102,9 +5116,10 @@ export const actCommission = {
        every change on the face is then genuinely the incidence angle moving.
        Pure t: lampX is pure t. At the hand-over it falls to 4.2, under the cold
        counter-light's 7.6 at its own distance, so the face really does go cold
-       rather than merely going slightly less gold. */
+       rather than merely going slightly less gold.
+       v7: times the swing-on ramp, which is 1 everywhere past t 0.10. */
     var d2 = lampX * lampX + 35.65;    /* (3.85 - 1.1)^2 + 5.30^2 */
-    S.key.intensity = lerp(20, 4.2, hand) * d2;
+    S.key.intensity = lerp(20, 4.2, hand) * d2 * kOn;
     S.cold.intensity = lerp(0, 900, hand);
     S.lensMat.color.lerpColors(S.lensHot, S.lensCold, hand);
 

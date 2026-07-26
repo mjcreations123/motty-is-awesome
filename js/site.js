@@ -24,6 +24,7 @@
 
   /* the splice: chapter card and letterbox bars, driven from the same scroll frame */
   var cut = $("#cut"), cutNum = $("#cut-num"), cutName = $("#cut-name");
+  var cutPrev = $("#cut-prev"), cutRoll = $("#cut-roll");
   var barT = $(".lbar--t"), barB = $(".lbar--b");
   var coarse = root.classList.contains("is-coarse");
 
@@ -182,7 +183,10 @@
     if (g.dom) fade = 0;
     else {
       var inRamp = idx === 0 ? 1 : clamp(t / 0.06, 0, 1);
-      var outRamp = idx === geom.length - 1 ? 1 : clamp((1 - t) / 0.06, 0, 1);
+      /* the last act does not cut out: it fades to true black for the end card */
+      var outRamp = idx === geom.length - 1
+        ? clamp((0.92 - t) / 0.08, 0, 1)
+        : clamp((1 - t) / 0.06, 0, 1);
       fade = Math.min(inRamp, outRamp);
     }
     if (world) world.drive(idx, t, fade);
@@ -200,19 +204,32 @@
      tightens, and a chapter card holds the black: the number and name of the world you are
      entering, in that world's accent. All of it is a pure function of scroll, so scrubbing
      backwards runs the splice in reverse exactly. */
-  var lastCard = -1;
+  var lastCard = -1, lastBoundary = -2;
+  var easeOut3 = function (x) { return 1 - Math.pow(1 - x, 3); };
   function driveCut(idx, t, g, fade) {
     if (!cut) return;
+    var last = idx === acts.length - 1;
     var cutP = g.dom ? clamp(1 - Math.min(t, 1 - t) / 0.06, 0, 1) : (1 - fade);
+    /* the credits own the final black: no chapter card over them */
+    if (last && t > 0.5) cutP = 0;
     var target = t > 0.5 ? Math.min(idx + 1, acts.length - 1) : idx;
 
     if (target !== lastCard) {
       lastCard = target;
-      cutNum.textContent = ("0" + (target + 1)).slice(-2);
       cutName.textContent = acts[target].getAttribute("data-name") || "";
       /* the card wears the accent of the world it announces, not the one being left */
       cut.style.setProperty("--accent", acts[target].getAttribute("data-accent") || "#E9EBEF");
     }
+    /* the odometer: across boundary b the numeral rolls from act b+1 to act b+2,
+       driven by the same scrub as the black, so it reverses exactly */
+    var boundaryB = t > 0.5 ? idx : idx - 1;
+    if (boundaryB !== lastBoundary && boundaryB >= 0) {
+      lastBoundary = boundaryB;
+      cutPrev.textContent = ("0" + (boundaryB + 1)).slice(-2);
+      cutNum.textContent = ("0" + Math.min(boundaryB + 2, acts.length)).slice(-2);
+    }
+    var bp = boundaryB < 0 ? 1 : (t > 0.5 ? cutP * 0.5 : 1 - cutP * 0.5);
+    if (cutRoll) cutRoll.style.transform = "translateY(" + (-easeOut3(bp) * 50).toFixed(2) + "%)";
     cut.style.opacity = (cutP * cutP).toFixed(3);
 
     if (reduce) return;
@@ -257,10 +274,20 @@
   if (reduce) acts.forEach(function (a) { a.classList.add("is-on"); });
 
   /* ---------- act 07: show the form, not the content ---------- */
-  var formToggle = $("#form-toggle");
+  var formToggle = $("#form-toggle"), screenFrame = $("#screen-frame"), blinkT = 0;
   if (formToggle) {
     formToggle.addEventListener("change", function () {
-      root.classList.toggle("form-only", formToggle.checked);
+      /* a projector blink between slides: interaction feedback, skipped for reduced motion */
+      if (screenFrame && !reduce) {
+        screenFrame.classList.add("blink");
+        clearTimeout(blinkT);
+        blinkT = setTimeout(function () {
+          screenFrame.classList.remove("blink");
+          root.classList.toggle("form-only", formToggle.checked);
+        }, 130);
+      } else {
+        root.classList.toggle("form-only", formToggle.checked);
+      }
     });
   }
 

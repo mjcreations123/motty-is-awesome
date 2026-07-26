@@ -77,14 +77,40 @@ html.is-paper .scan,html.is-pale .scan{opacity:.035}
    it announces, set inline by the scroll driver. */
 .cut{position:fixed;inset:0;z-index:16;pointer-events:none;opacity:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
-.cut__num{font-family:var(--display);font-weight:600;line-height:.9;
+/* the numeral is an odometer: the outgoing chapter rolls up and out, the incoming
+   rolls in beneath it, scrubbed by the cut itself, reversible like everything else */
+.cut__win{display:block;height:.9em;overflow:hidden;
+  font-family:var(--display);font-weight:600;line-height:.9;
   font-size:clamp(110px,19vw,240px);letter-spacing:-.03em;color:var(--accent)}
+.cut__roll{display:flex;flex-direction:column;will-change:transform}
+.cut__roll b{font-weight:600;display:block;height:.9em}
 .cut__rule{width:58px;height:1px;background:var(--accent)}
 .cut__name{font-family:var(--mono);font-size:11px;letter-spacing:.4em;
   text-transform:uppercase;color:var(--bone);padding-left:.4em}
 /* a splice out of a light world happens over paper, not black, so the card's name
    switches ink with the ground it is actually sitting on */
 html.is-paperworld .cut__name,html.is-pale .cut__name{color:#14161A}
+
+/* ---------- the end card: the film's final shot ---------- */
+.sub--end{text-align:center}
+.js .sub--end.is-live{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none;
+  /* the base .sub rule centres blocks inside the copy column with translateY(-50%);
+     a fixed full-viewport card inherits that and hangs half off the top of the screen */
+  transform:none}
+/* the sub-beat rail is column furniture; it has no business floating over the credits */
+.js .act__copy:has(.sub--end.is-live) .sub-rail{opacity:0}
+.end__title{font-family:var(--display);font-weight:600;letter-spacing:-.035em;line-height:.94;
+  font-size:clamp(52px,9vw,150px);color:var(--bone);text-transform:lowercase}
+.end__title em{font-style:normal;color:var(--accent)}
+.end__ask{margin-top:22px;font-family:var(--mono);font-size:12px;letter-spacing:.5em;
+  text-transform:uppercase;color:var(--ash);padding-left:.5em}
+.end__cred{position:absolute;bottom:calc(var(--barH) + 26px);left:0;right:0;
+  font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--steel-txt)}
+.end__cred i{font-style:normal;padding:0 .4em}
+/* no-JS and reduced motion read it as a normal closing block */
+html:not(.js) .end__cred,.js .sub--end:not(.is-live) .end__cred{position:static;margin-top:26px}
 
 /* ---------- the chrome lives INSIDE the letterbox ----------
    Four small readings in the bars, nothing floating over the picture. The bars are
