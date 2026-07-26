@@ -272,26 +272,48 @@ html:not(.js) .buy{display:none}   /* a button that cannot act does not get draw
 /* ---------------- responsive ---------------- */
 @media (max-width:860px){
   body{font-size:16px}
-  .act__pin{padding:0 var(--edge)}
+  /* keep the letterbox inset: bare `padding:0` here let the copy run under the bars */
+  .act__pin{padding:calc(var(--barH) + 6px) var(--edge)}
   .act__copy,.act--right .act__copy{width:100%;margin:0}
-  .act__copy::before,.act--right .act__copy::before,
-  html.is-pale .act--right .act__copy::before{
-    inset:-24% -32% -24% -32%;
-    background:radial-gradient(78% 62% at 50% 50%,rgba(8,9,11,.995) 0%,rgba(8,9,11,.985) 50%,
-      rgba(8,9,11,.88) 72%,rgba(8,9,11,0) 100%)}
-  html.is-pale .act--right .act__copy::before{
-    background:radial-gradient(78% 62% at 50% 50%,rgba(221,224,228,.99) 0%,rgba(221,224,228,.97) 52%,
-      rgba(221,224,228,.86) 74%,rgba(221,224,228,0) 100%)}
-  html.is-paperworld .act--right .act__copy::before{
-    inset:-24% -32% -24% -32%;
-    background:radial-gradient(78% 62% at 50% 50%,rgba(231,228,221,1) 0%,rgba(231,228,221,.99) 52%,
-      rgba(231,228,221,.9) 74%,rgba(231,228,221,0) 100%)}
+  /* Phone framing: the copy sits in the lower third and the scene owns the top two,
+     instead of a centred column with dead darkness above and below it. */
+  .js .act--scene .act__pin{align-items:flex-end;padding-bottom:calc(var(--barH) + 4vh)}
+  .js .act--scene .act__copy{min-height:0}
+  .js .act--scene .sub{position:absolute;top:auto;bottom:0;transform:none}
+  .sub-rail{top:auto;bottom:-22px}
+  /* The copy is bottom-anchored on a phone, so the scrim is too: a centred radial left the
+     lower third naked, and the vault's beam and the kiln's embers sit exactly there. A
+     linear wash from the bottom edge guarantees the type reads over ANY scene, which a
+     radial tuned to one composition never can. */
+  /* sized in vh, not in percentages of the parent: the copy column is bottom-anchored with
+     absolutely positioned beats, so its own box is zero tall and a percentage inset resolved
+     to a zero-height strip that tinted nothing at all. */
+  .act__copy::before,.act--right .act__copy::before{
+    top:auto;bottom:-8vh;height:70vh;left:-40%;right:-40%;
+    background:linear-gradient(to top,rgba(8,9,11,.985) 0%,rgba(8,9,11,.965) 42%,
+      rgba(8,9,11,.86) 62%,rgba(8,9,11,.45) 80%,rgba(8,9,11,0) 100%)}
+  html.is-pale .act__copy::before,html.is-pale .act--right .act__copy::before{
+    background:linear-gradient(to top,rgba(221,224,228,.99) 0%,rgba(221,224,228,.97) 44%,
+      rgba(221,224,228,.88) 64%,rgba(221,224,228,.45) 82%,rgba(221,224,228,0) 100%)}
+  html.is-paperworld .act__copy::before,html.is-paperworld .act--right .act__copy::before{
+    background:linear-gradient(to top,rgba(231,228,221,1) 0%,rgba(231,228,221,.98) 44%,
+      rgba(231,228,221,.9) 64%,rgba(231,228,221,.48) 82%,rgba(231,228,221,0) 100%)}
   .hud{font-size:9.5px;letter-spacing:.08em}
   .registry-wrap{grid-template-columns:1fr}
   .tier-block:first-child{grid-column:auto}
   .registry li{grid-template-columns:1fr;row-gap:1px}
   .registry .tier{text-align:left;font-size:9px}
 }
+/* The phone rule above is (0,3,0) and the short-viewport fallback near the top of this file
+   is (0,2,0), so on a small landscape phone the copy would have stayed absolutely pinned to
+   a pin that the fallback had already turned static and auto-height. Restore the flow. */
+@media (max-width:860px) and (max-height:640px){
+  .js .act--scene .act__pin{align-items:center;padding:calc(var(--barH) + 6px) var(--edge)}
+  .js .act--scene .sub{position:relative;top:auto;bottom:auto;transform:none;margin-bottom:2.5rem}
+  .act__copy::before,.act--right .act__copy::before{display:none}
+  .sub-rail{position:relative;top:auto;bottom:auto;margin-top:18px}
+}
+
 /* The cue has to switch on what the pointer can DO, not on how wide the screen is. The
    engine gives touch a tap and a mouse a drag, so a touch tablet wider than 860px was
    being told to drag something that only ever responds to a tap. */
@@ -303,7 +325,7 @@ html.is-coarse .cue--act .m{display:inline}
 html.world-on .cue--act{display:inline-flex}
 @media (max-width:520px){
   .act h1,.act h2{font-size:clamp(27px,7.4vw,38px)}
-  .title,.record .pull{font-size:clamp(32px,9.6vw,48px)}
+  .act .title,.record .pull{font-size:clamp(40px,12.5vw,52px)}
   .rc-big{font-size:clamp(40px,13vw,68px)}
   .buy{width:100%;text-align:center}
 }

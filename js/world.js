@@ -150,12 +150,33 @@ export function createWorld(THREE, canvas, acts, hooks) {
   canvas.addEventListener("pointerup", release);
   canvas.addEventListener("pointercancel", release);
 
+  /* PORTRAIT FRAMING.
+     three.js fov is VERTICAL, so on a 375x812 phone (aspect 0.46 against the 16:9 these
+     scenes were composed for) the horizontal extent collapses to about a quarter and every
+     subject composed off the centre line leaves the frame. The page was scrolling through a
+     film whose subject was out of shot. Widening the lens back by the full ratio would need
+     a ~106 degree fov, which is a fisheye, so this recovers the geometric mean of the two
+     and caps it: subjects come back into frame without the edges bending. */
+  var DESIGN_ASPECT = 16 / 9, MAX_FOV = 66;
+  function frameGain() {
+    var a = window.innerWidth / window.innerHeight;
+    return a >= DESIGN_ASPECT ? 1 : Math.sqrt(DESIGN_ASPECT / a);
+  }
+  function correctFov(f) {
+    var g = frameGain();
+    if (g === 1) return f;
+    var out = Math.atan(Math.tan(f * Math.PI / 360) * g) * 360 / Math.PI;
+    return out > MAX_FOV ? MAX_FOV : out;
+  }
+
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false);
     persp.aspect = w / h;
     persp.updateProjectionMatrix();
-    var half = 34;
+    /* the orthographic act gets the same treatment: its horizontal half-extent is
+       half * aspect, so a portrait viewport needs a taller frustum to hold the survey */
+    var half = 34 * frameGain();
     ortho.top = half; ortho.bottom = -half;
     ortho.left = -half * (w / h); ortho.right = half * (w / h);
     ortho.updateProjectionMatrix();
@@ -164,6 +185,7 @@ export function createWorld(THREE, canvas, acts, hooks) {
   window.addEventListener("resize", resize);
 
   var rafId = 0, t0 = performance.now(), lastFade = -1;
+  var designFov = 55, lastFov = -1;   /* see the portrait framing note above */
   var drive = { index: 0, t: 0, fade: 1 };
 
   function frame() {
@@ -202,6 +224,21 @@ export function createWorld(THREE, canvas, acts, hooks) {
     renderer.setClearColor(bg, 1);
 
     if (s.act.camera) s.act.camera(ctx);
+
+    /* The act just wrote the shot it wants at 16:9. Re-derive it for this viewport.
+       The design value is tracked rather than recomputed from the camera, so an act that
+       only sets fov once (or guards on `c.fov !== want`) cannot compound the correction
+       frame after frame. */
+    if (!ctx.camera.isOrthographicCamera) {
+      var want = ctx.camera.fov;
+      if (want !== lastFov) designFov = want;      /* the act rewrote it: new design value */
+      var fixed = correctFov(designFov);
+      if (Math.abs(ctx.camera.fov - fixed) > 1e-4) {
+        ctx.camera.fov = fixed;
+        ctx.camera.updateProjectionMatrix();
+      }
+      lastFov = fixed;
+    }
     if (s.act.frame && !reduce) s.act.frame(ctx);
     else if (s.act.frame) {
       /* Reduced motion runs frame() once and latches, which is right for anything driven by
