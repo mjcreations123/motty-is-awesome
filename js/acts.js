@@ -1942,26 +1942,34 @@ export const actRun = {
     root.add(doorGrp);
     S.doorGrp = doorGrp;
 
-    var doorGeo = new T.CylinderGeometry(4.15, 4.15, 1.5, small ? 20 : 32, 1, true, 0, Math.PI);
-    var doorMat = new T.MeshLambertMaterial({ color: 0x39414D, side: T.DoubleSide });
-    S.doorR = new T.Group();          /* pivots carry the parting; the meshes keep */
-    S.doorL = new T.Group();          /* their own axis flip so euler orders never mix */
-    var doorRm = new T.Mesh(doorGeo, doorMat);            /* x > 0 half */
-    doorRm.rotation.x = Math.PI / 2;
-    var doorLm = new T.Mesh(doorGeo, doorMat);            /* x < 0 half */
-    doorLm.rotation.x = Math.PI / 2;
-    doorLm.rotation.z = Math.PI;      /* local z spin flips the half across the seam */
+    /* Flat leaves, not half cylinders. An open-bored half cylinder with its axis down
+       z is a TUBE WALL, and head on it draws exactly what it is: a black annulus
+       hanging in the channel. Two of them read as a donut, not as a mouth. The tube's
+       cross section is rectangular anyway (about 16 wide by 8 tall), which no circular
+       iris was ever going to cover. Two rectangular leaves meeting on the axis cover
+       the bore, occlude it honestly while shut, and part sideways to open it. */
+    var DOOR_W = 9.4, DOOR_H = 9.6;
+    var doorGeo = new T.BoxGeometry(DOOR_W, DOOR_H, 0.34);
+    var doorMat = new T.MeshLambertMaterial({ color: 0x2B323C });
+    S.doorR = new T.Group();
+    S.doorL = new T.Group();
+    var doorRm = new T.Mesh(doorGeo, doorMat);
+    doorRm.position.x = DOOR_W / 2;      /* leaf sits entirely right of the seam */
+    var doorLm = new T.Mesh(doorGeo, doorMat);
+    doorLm.position.x = -DOOR_W / 2;
+    /* a drawn edge on the closing face, so the seam is a line and not a guess */
+    var doorEdgeMat = new T.LineBasicMaterial({ color: 0x6D7684, transparent: true, opacity: 0.7 });
+    doorRm.add(new T.LineSegments(new T.EdgesGeometry(doorGeo), doorEdgeMat));
+    doorLm.add(new T.LineSegments(new T.EdgesGeometry(doorGeo), doorEdgeMat));
     S.doorR.add(doorRm);
     S.doorL.add(doorLm);
     doorGrp.add(S.doorR);
     doorGrp.add(S.doorL);
 
-    /* the light behind the doors. The halves are an open-bored ring (open-ended
-       half cylinders), so they NEVER occlude the channel — depth testing does not
-       hide this plane while the mouth is "closed". The reveal is carried entirely
-       by the sin(dk * PI) opacity ramp in frame(): it lifts the spill as the gap
-       widens and kills it the moment the halves are fully parted. Removing that
-       ramp, or holding the glow on while closed, leaks light through a shut mouth. */
+    /* The light behind the doors. The leaves are solid and write depth, so this plane
+       is genuinely hidden while the mouth is shut and genuinely revealed as it parts:
+       the reveal is real occlusion now, and the opacity ramp in frame() only shapes
+       how hot the slit reads at its narrowest. */
     S.doorGlow = new T.Mesh(new T.PlaneGeometry(8.4, 8.4),
       new T.MeshBasicMaterial({
         map: runSpillTexture(T, R), transparent: true, opacity: 0,
@@ -2043,8 +2051,12 @@ export const actRun = {
     var NL = small ? 18 : 34;
     var stripMat = new T.MeshBasicMaterial({ color: 0xCBD5E1, transparent: true, opacity: 0.8 });
     var strips = new T.InstancedMesh(new T.BoxGeometry(0.55, 0.07, 2.8), stripMat, NL);
+    /* The run starts 7 units downstream. Sitting the first fixture at z 0 put it barely
+       nine units from the opening lens, where a 0.55 by 2.8 slat is not a light: it is a
+       featureless pale slab hanging in the middle of the mouth. Set back, the opening
+       frame gets a row of lights receding down the corridor, which is what it is. */
     for (var li = 0; li < NL; li++) {
-      v.set(0, 5.2, -li * (RUN_LEN / (NL - 1)));
+      v.set(0, 5.2, -7 - li * (RUN_LEN / (NL - 1)));
       m4.compose(v, q.setFromEuler(e), s);
       strips.setMatrixAt(li, m4);
     }
@@ -2320,25 +2332,21 @@ export const actRun = {
     var sc = lerp(1, 0.86, n);
     S.tube.scale.x = sc; S.tube.scale.y = sc;
 
-    /* the mouth doors part across the entrance and are retired by t 0.10: every term
-       here is a pure function of t, and the whole group is off for 90% of the act.
-       The parting completes at t ~ 0.038, the instant the lens crosses the door
-       station (z 2), so none of it plays behind the camera. The spill is NOT a
-       depth-occlusion reveal (the halves are an open-bored ring that never covers
-       the channel): the sin(dk * PI) opacity ramp below IS the reveal — it rises
-       as the gap widens and is gone the moment the halves are fully parted. */
+    /* The mouth parts across the entrance and is retired by t 0.10: every term here is
+       a pure function of t, and the whole group is off for 90% of the act. The parting
+       completes at t ~ 0.038, the instant the lens crosses the door station (z 2), so
+       none of it plays behind the camera. The leaves travel a full half width clear of
+       the bore, because a leaf still standing in the channel is a wall you fly through. */
     var doorsOn = t < 0.10;
     S.doorGrp.visible = doorsOn;
     if (doorsOn) {
       var dk = ease(clamp01(t / 0.038));
-      S.doorR.position.x = 6.6 * dk;
-      S.doorL.position.x = -6.6 * dk;
-      S.doorR.rotation.z = -0.14 * dk;      /* a hint of iris in the parting */
-      S.doorL.rotation.z = 0.14 * dk;
+      S.doorR.position.x = 10.2 * dk;
+      S.doorL.position.x = -10.2 * dk;
       var spill = Math.sin(Math.min(dk, 0.999) * Math.PI);
-      S.doorGlow.material.opacity = 0.85 * spill;
-      S.doorGlow.visible = spill > 0.004;
-      S.doorGlow.scale.set(0.3 + 3.0 * dk, 1.15, 1);
+      S.doorGlow.material.opacity = 0.5 + 0.5 * spill;
+      S.doorGlow.visible = dk > 0.004;
+      S.doorGlow.scale.set(0.22 + 2.6 * dk, 1.15, 1);
     }
 
     /* fog opens across the aperture crossing. The camera passes RUN_END_Z at t ~ 0.80, so
